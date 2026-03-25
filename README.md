@@ -27,7 +27,25 @@ On **Windows** — open PowerShell (search "PowerShell" in the Start menu) or Co
 python run_scan.py
 ```
 
-No dependencies required — uses only the Python standard library.
+If you get `python` is not recognized, try:
+
+```cmd
+py run_scan.py
+```
+
+No dependencies required — uses only the Python standard library (Python 3.10+).
+
+### Windows: Python not installed?
+
+If you see an error like `libpython3.x.dll is not found` or `python is not recognized`, Python is either not installed or not properly configured:
+
+1. Download Python from https://www.python.org/downloads/
+2. **Important:** during installation, check the box **"Add Python to PATH"**
+3. Restart your terminal (close and reopen PowerShell/cmd)
+4. Verify with: `python --version`
+5. Then run: `python run_scan.py`
+
+If you already have Python installed but still get the DLL error, your installation may be corrupted — reinstall Python from the link above with the "Add to PATH" option checked.
 
 ## Video Overview
 
