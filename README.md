@@ -24,28 +24,15 @@ python3 run_scan.py
 On **Windows** — open PowerShell (search "PowerShell" in the Start menu) or Command Prompt (`Win+R`, type `cmd`, press Enter), then run:
 
 ```cmd
-python run_scan.py
-```
-
-If you get `python` is not recognized, try:
-
-```cmd
 py run_scan.py
 ```
 
-No dependencies required — uses only the Python standard library (Python 3.10+).
+> **If you get `'py' is not recognized`**, use `python run_scan.py` instead.
+> The `py` launcher ships with standard Python installs and avoids DLL errors
+> that can occur when multiple Python versions are installed.
+> You can check if it's available with: `py --version`
 
-### Windows: Python not installed?
-
-If you see an error like `libpython3.x.dll is not found` or `python is not recognized`, Python is either not installed or not properly configured:
-
-1. Download Python from https://www.python.org/downloads/
-2. **Important:** during installation, check the box **"Add Python to PATH"**
-3. Restart your terminal (close and reopen PowerShell/cmd)
-4. Verify with: `python --version`
-5. Then run: `python run_scan.py`
-
-If you already have Python installed but still get the DLL error, your installation may be corrupted — reinstall Python from the link above with the "Add to PATH" option checked.
+No dependencies required — uses only the Python standard library.
 
 ## Video Overview
 
@@ -118,9 +105,9 @@ This scanner makes a best-effort attempt to detect known IOCs. It automatically 
 python3 run_scan.py
 python3 -m scan_litellm_compromise
 
-# Windows (PowerShell or cmd.exe)
-python run_scan.py
-python -m scan_litellm_compromise
+# Windows (PowerShell or cmd.exe) — use py, or python as fallback
+py run_scan.py
+py -m scan_litellm_compromise
 ```
 
 The scanner auto-detects the platform and adjusts scan paths, network commands, and persistence checks accordingly.
