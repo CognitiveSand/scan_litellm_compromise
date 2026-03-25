@@ -1,7 +1,6 @@
 """Windows 10/11 platform policy."""
 
 import os
-import re
 import shutil
 from pathlib import Path
 
@@ -35,33 +34,6 @@ class WindowsPolicy:
                 for name in ("Miniconda3", "Miniforge3", "Anaconda3"):
                     globs.append(str(Path(base) / name))
         return globs
-
-    @property
-    def system_pythons(self) -> list[str]:
-        candidates = []
-        localappdata = os.environ.get("LOCALAPPDATA", "")
-        if localappdata:
-            programs_python = Path(localappdata) / "Programs" / "Python"
-            if programs_python.is_dir():
-                for child in programs_python.iterdir():
-                    exe = child / "python.exe"
-                    if exe.is_file():
-                        candidates.append(str(exe))
-            # Windows Store Python
-            win_apps = Path(localappdata) / "Microsoft" / "WindowsApps"
-            for name in ("python3.exe", "python.exe"):
-                app_py = win_apps / name
-                if app_py.is_file():
-                    candidates.append(str(app_py))
-        return candidates
-
-    @property
-    def python_binary_names(self) -> frozenset[str]:
-        return frozenset({"python.exe", "python3.exe"})
-
-    @property
-    def python_versioned_re(self) -> re.Pattern[str]:
-        return re.compile(r"^python3\.\d+\.exe$")
 
     @property
     def persistence_paths(self) -> list[str]:
@@ -139,10 +111,6 @@ class WindowsPolicy:
             if candidate.is_dir():
                 return candidate
         return None
-
-    def is_executable_python(self, path: Path) -> bool:
-        # os.access(X_OK) is meaningless on Windows — check .exe suffix instead.
-        return path.is_file() and path.suffix.lower() == ".exe"
 
     def extra_ioc_checks(self, results: object) -> None:
         from .ioc_windows import run_windows_ioc_checks

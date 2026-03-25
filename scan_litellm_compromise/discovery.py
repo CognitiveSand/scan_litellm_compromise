@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import glob as globmod
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -46,7 +47,7 @@ def _walk_for_litellm_metadata(root: Path) -> list[Path]:
     """Walk a directory tree looking for litellm metadata directories."""
     found = []
     try:
-        for dirpath, dirnames, _ in root.walk():
+        for dirpath, dirnames, _ in os.walk(root):
             dirnames[:] = [d for d in dirnames if d not in DISCOVERY_SKIP_DIRS]
             for dirname in dirnames:
                 if _is_litellm_metadata_dir(dirname):

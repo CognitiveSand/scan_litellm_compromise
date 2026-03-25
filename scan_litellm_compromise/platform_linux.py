@@ -1,7 +1,6 @@
 """Linux platform policy — extracts existing Linux-specific constants."""
 
 import os
-import re
 from pathlib import Path
 
 
@@ -20,18 +19,6 @@ class LinuxPolicy:
     @property
     def conda_globs(self) -> list[str]:
         return ["/opt/conda", "/opt/miniconda*", "/opt/miniforge*"]
-
-    @property
-    def system_pythons(self) -> list[str]:
-        return ["/usr/bin/python3", "/usr/bin/python"]
-
-    @property
-    def python_binary_names(self) -> frozenset[str]:
-        return frozenset({"python", "python3"})
-
-    @property
-    def python_versioned_re(self) -> re.Pattern[str]:
-        return re.compile(r"^python3\.\d+$")
 
     @property
     def persistence_paths(self) -> list[str]:
@@ -72,9 +59,6 @@ class LinuxPolicy:
     def home_pipx_dir(self) -> Path | None:
         candidate = Path.home() / ".local" / "share" / "pipx"
         return candidate if candidate.is_dir() else None
-
-    def is_executable_python(self, path: Path) -> bool:
-        return path.is_file() and os.access(path, os.X_OK)
 
     def extra_ioc_checks(self, results: object) -> None:
         pass  # No extra checks on Linux beyond the common ones.

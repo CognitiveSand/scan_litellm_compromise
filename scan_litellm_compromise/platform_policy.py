@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 from typing import Protocol
@@ -28,21 +27,6 @@ class PlatformPolicy(Protocol):
     @property
     def conda_globs(self) -> list[str]:
         """Glob patterns for system-wide conda installations."""
-        ...
-
-    @property
-    def system_pythons(self) -> list[str]:
-        """Paths to well-known system Python interpreters."""
-        ...
-
-    @property
-    def python_binary_names(self) -> frozenset[str]:
-        """Filenames that are Python interpreters (e.g. 'python3', 'python.exe')."""
-        ...
-
-    @property
-    def python_versioned_re(self) -> re.Pattern[str]:
-        """Regex matching versioned Python binaries (e.g. python3.11)."""
         ...
 
     @property
@@ -86,10 +70,6 @@ class PlatformPolicy(Protocol):
 
     def home_pipx_dir(self) -> Path | None:
         """Path to pipx virtual envs directory, or None."""
-        ...
-
-    def is_executable_python(self, path: Path) -> bool:
-        """Check whether a discovered file is an executable Python binary."""
         ...
 
     def extra_ioc_checks(self, results: object) -> None:
