@@ -21,16 +21,13 @@ On **Linux / macOS** — open a terminal and run:
 python3 run_scan.py
 ```
 
-On **Windows** — open PowerShell (search "PowerShell" in the Start menu) or Command Prompt (`Win+R`, type `cmd`, press Enter), then run:
+On **Windows** — double-click **`run_scan.bat`**. That's it.
+
+Alternatively, open PowerShell or Command Prompt and run:
 
 ```cmd
 py run_scan.py
 ```
-
-> **If you get `'py' is not recognized`**, use `python run_scan.py` instead.
-> The `py` launcher ships with standard Python installs and avoids DLL errors
-> that can occur when multiple Python versions are installed.
-> You can check if it's available with: `py --version`
 
 No dependencies required — uses only the Python standard library.
 
