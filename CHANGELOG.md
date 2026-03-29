@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 — 2026-03-29
+
+### Fixed
+- Improved Quick Start with clear install instructions for Linux, macOS, and Windows.
+- Added PEP 668 workaround guidance (pipx / venv) for modern Linux distributions.
+- Added PyPI publish workflow via GitHub Actions trusted publisher (OIDC).
+
 ## 0.3.0 — 2026-03-29
 
 ### Added
