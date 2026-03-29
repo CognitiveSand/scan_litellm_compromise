@@ -6,24 +6,36 @@ A best-effort scanner that **attempts to detect** indicators of compromise (IOCs
 
 ## Quick Start
 
-**1. Download the scanner:**
+### Option A: Install from PyPI
+
+```bash
+# Recommended — installs in an isolated environment
+pipx install scan-litellm-compromise
+
+# Then run:
+scan-litellm
+```
+
+If you don't have pipx: `sudo apt install pipx` (Debian/Ubuntu) or `brew install pipx` (macOS).
+
+Alternatively, using pip inside a virtual environment:
+
+```bash
+python3 -m venv /tmp/scanner && /tmp/scanner/bin/pip install scan-litellm-compromise
+/tmp/scanner/bin/scan-litellm
+```
+
+> **Note:** `pip install` directly will fail on modern Linux distributions (Debian 12+, Ubuntu 23.04+, Fedora 38+) due to [PEP 668](https://peps.python.org/pep-0668/). Use `pipx` or a virtual environment instead.
+
+### Option B: Run from source (no install needed)
 
 ```bash
 git clone https://github.com/CognitiveSand/scan_litellm_compromise.git
 cd scan_litellm_compromise
-```
-
-**2. Run it:**
-
-On **Linux / macOS** — open a terminal and run:
-
-```bash
 python3 run_scan.py
 ```
 
-On **Windows** — double-click **`run_scan.bat`**. That's it.
-
-Alternatively, open PowerShell or Command Prompt and run:
+On **Windows** — double-click **`run_scan.bat`**, or from a terminal:
 
 ```cmd
 py run_scan.py
