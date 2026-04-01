@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
 
+from .config import IOC_WALK_SKIP_DIRS
 from .formatting import (
     BOLD,
     RED,
@@ -79,7 +80,10 @@ def _scan_walk_files(
             if not root_path.is_dir():
                 continue
             try:
-                for dirpath, _, filenames in os.walk(root_path):
+                for dirpath, dirnames, filenames in os.walk(root_path):
+                    dirnames[:] = [
+                        d for d in dirnames if d not in IOC_WALK_SKIP_DIRS
+                    ]
                     for fn in filenames:
                         if fn not in target_names:
                             continue

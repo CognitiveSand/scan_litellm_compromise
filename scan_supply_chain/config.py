@@ -24,5 +24,9 @@ _COMMON_SKIP_DIRS = frozenset(
 # Phase 1/2 discovery needs to enter site-packages / node_modules
 DISCOVERY_SKIP_DIRS = _COMMON_SKIP_DIRS
 
+# Phase 3 IOC walk skips unproductive trees (but keeps site-packages
+# because .pth backdoors live there)
+IOC_WALK_SKIP_DIRS = _COMMON_SKIP_DIRS | {"node_modules"}
+
 # Phase 4 source scanner skips third-party code
 SOURCE_SCAN_SKIP_DIRS = _COMMON_SKIP_DIRS | {"site-packages", "node_modules"}

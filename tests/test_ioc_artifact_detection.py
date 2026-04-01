@@ -121,6 +121,52 @@ class TestScanWalkFiles:
 
         assert results.iocs == []
 
+    def test_skips_pycache_during_walk(self, tmp_path, capsys):
+        # @req FR-11
+        pycache = tmp_path / "__pycache__"
+        pycache.mkdir()
+        (pycache / "litellm_init.pth").write_text("import os")
+
+        from scan_supply_chain.threat_profile import WalkFileIOC
+
+        threat = make_litellm_threat(
+            walk_files=[
+                WalkFileIOC(
+                    description="test",
+                    filenames=["litellm_init.pth"],
+                    sha256=[],
+                )
+            ],
+        )
+
+        results = ScanResults()
+        _scan_walk_files(results, threat, [str(tmp_path)])
+
+        assert results.iocs == []
+
+    def test_finds_ioc_in_site_packages(self, tmp_path, capsys):
+        # @req FR-11
+        sp = tmp_path / "lib" / "site-packages"
+        sp.mkdir(parents=True)
+        (sp / "litellm_init.pth").write_text("import os")
+
+        from scan_supply_chain.threat_profile import WalkFileIOC
+
+        threat = make_litellm_threat(
+            walk_files=[
+                WalkFileIOC(
+                    description="test",
+                    filenames=["litellm_init.pth"],
+                    sha256=[],
+                )
+            ],
+        )
+
+        results = ScanResults()
+        _scan_walk_files(results, threat, [str(tmp_path)])
+
+        assert len(results.iocs) == 1
+
     def test_respects_explicit_roots(self, tmp_path, capsys):
         # @req FR-11 FR-13
         (tmp_path / "litellm_init.pth").write_text("import os")
