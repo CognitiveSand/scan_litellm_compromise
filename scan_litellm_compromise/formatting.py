@@ -42,10 +42,14 @@ BOLD = _code("\033[1m")
 RESET = _code("\033[0m")
 
 
-def print_banner():
+def print_banner(version: str = ""):
+    ver_str = f"v{version}" if version else ""
+    title = f"Supply Chain Compromise Scanner {ver_str}".strip()
+    # Pad title to fill the box (59 chars inner width)
+    padded = f"   {title}" + " " * (60 - len(title) - 3)
     print(f"{CYAN}{BOLD}")
     print("+" + "=" * 63 + "+")
-    print("|   Supply Chain Compromise Scanner                            |")
+    print(f"|{padded}|")
     print("|   Detects known PyPI and npm supply chain attacks            |")
     print("+" + "=" * 63 + "+")
     print(RESET)

@@ -1,6 +1,6 @@
 [project]
 name = "scan-litellm-compromise"
-version = "0.4.0"
+version = "0.4.1"
 description = "Supply chain compromise scanner — detects known PyPI and npm attacks via data-driven threat profiles"
 readme = "README.md"
 license = "MIT"

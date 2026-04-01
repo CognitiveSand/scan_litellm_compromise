@@ -5,9 +5,10 @@ import logging
 import sys
 from pathlib import Path
 
+from . import __version__
 from .discovery import find_package_metadata
 from .ecosystem_base import get_ecosystem
-from .formatting import BOLD, RESET, print_banner, print_phase_header, print_separator
+from .formatting import BOLD, CYAN, RESET, YELLOW, print_banner, print_phase_header, print_separator
 from .ioc_scanner import scan_iocs
 from .models import ScanResults
 from .platform_policy import detect_platform
@@ -69,6 +70,7 @@ def _do_list_threats() -> None:
     if not threats:
         print("No threat profiles found.")
         sys.exit(0)
+    print(f"\n{BOLD}Supply Chain Compromise Scanner v{__version__}{RESET}")
     print(f"\n{BOLD}Available threat profiles:{RESET}\n")
     for t in threats:
         compromised_str = ", ".join(sorted(t.compromised))
@@ -181,12 +183,21 @@ def main():
 
     policy = detect_platform()
 
-    print_banner()
+    print_banner(__version__)
     print(f"  {BOLD}Platform:{RESET} {policy.name}")
-    print(f"  {BOLD}Threats:{RESET}  {len(threats)} profile(s)")
     if args.scan_path:
         print(f"  {BOLD}Scan path:{RESET} {args.scan_path}")
     print(f"  {BOLD}NOTE:{RESET} {policy.exclusion_note}\n")
+
+    print(f"  {BOLD}Threat profiles ({len(threats)}):{RESET}")
+    for t in threats:
+        versions = ", ".join(sorted(t.compromised))
+        print(
+            f"    {CYAN}{t.id}{RESET}  "
+            f"{t.ecosystem.upper()}:{BOLD}{t.package}{RESET} "
+            f"{YELLOW}[{versions}]{RESET}"
+        )
+    print()
 
     # Run pipeline for each threat
     all_results: list[tuple[ThreatProfile, ScanResults]] = []
