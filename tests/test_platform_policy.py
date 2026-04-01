@@ -1,18 +1,18 @@
 """Tests for platform detection and policy implementations.
 
-Modules under test: scan_litellm_compromise.platform_policy,
-    scan_litellm_compromise.platform_linux,
-    scan_litellm_compromise.platform_darwin,
-    scan_litellm_compromise.platform_windows
+Modules under test: scan_supply_chain.platform_policy,
+    scan_supply_chain.platform_linux,
+    scan_supply_chain.platform_darwin,
+    scan_supply_chain.platform_windows
 """
 
 import sys
 
 import pytest
 
-from scan_litellm_compromise.platform_darwin import DarwinPolicy
-from scan_litellm_compromise.platform_linux import LinuxPolicy
-from scan_litellm_compromise.platform_policy import detect_platform
+from scan_supply_chain.platform_darwin import DarwinPolicy
+from scan_supply_chain.platform_linux import LinuxPolicy
+from scan_supply_chain.platform_policy import detect_platform
 
 
 # ── detect_platform ──────────────────────────────────────────────────
@@ -110,7 +110,7 @@ class TestWindowsPolicy:
         monkeypatch.setenv("TEMP", "/tmp/faketemp")
         monkeypatch.setenv("ProgramFiles", "/tmp/Program Files")
 
-        from scan_litellm_compromise.platform_windows import WindowsPolicy
+        from scan_supply_chain.platform_windows import WindowsPolicy
 
         return WindowsPolicy()
 

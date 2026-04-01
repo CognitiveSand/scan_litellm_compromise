@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-LiteLLM Supply Chain Attack Scanner — entry point.
+Supply Chain Compromise Scanner — entry point.
 
 Usage:
     python run_scan.py
-    python -m scan_litellm_compromise
+    python -m scan_supply_chain
 """
 
-from scan_litellm_compromise.scanner import main
+from scan_supply_chain.scanner import main
 
 if __name__ == "__main__":
     main()

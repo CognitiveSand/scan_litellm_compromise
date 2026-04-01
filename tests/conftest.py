@@ -1,16 +1,16 @@
-"""Shared fixtures for the scan_litellm_compromise test suite."""
+"""Shared fixtures for the scan_supply_chain test suite."""
 
 from pathlib import Path
 
 import pytest
 
-from scan_litellm_compromise.models import (
+from scan_supply_chain.models import (
     ConfigReference,
     Installation,
     ScanResults,
     SourceReference,
 )
-from scan_litellm_compromise.threat_profile import (
+from scan_supply_chain.threat_profile import (
     C2Info,
     KnownPathIOC,
     KubernetesIOC,

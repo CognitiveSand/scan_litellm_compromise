@@ -1,9 +1,9 @@
 """Tests for CLI argument parsing.
 
-Module under test: scan_litellm_compromise.scanner._parse_args
+Module under test: scan_supply_chain.scanner._parse_args
 """
 
-from scan_litellm_compromise.scanner import _parse_args
+from scan_supply_chain.scanner import _parse_args
 
 
 class TestParseArgs:

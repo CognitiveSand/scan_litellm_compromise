@@ -1,15 +1,15 @@
 """Tests for Phase 1: discovering package installations via filesystem metadata.
 
-Module under test: scan_litellm_compromise.discovery
+Module under test: scan_supply_chain.discovery
 """
 
-from scan_litellm_compromise.discovery import (
+from scan_supply_chain.discovery import (
     _deduplicate_by_realpath,
     _walk_for_metadata,
     _walk_for_node_modules,
     find_package_metadata,
 )
-from scan_litellm_compromise.ecosystem_pypi import PyPIPlugin
+from scan_supply_chain.ecosystem_pypi import PyPIPlugin
 
 
 # ── _walk_for_metadata (PyPI filesystem) ──────────────────────────────
@@ -66,9 +66,7 @@ class TestWalkForMetadata:
         def walk_that_raises(path, **kwargs):
             raise PermissionError("denied")
 
-        monkeypatch.setattr(
-            "scan_litellm_compromise.discovery.os.walk", walk_that_raises
-        )
+        monkeypatch.setattr("scan_supply_chain.discovery.os.walk", walk_that_raises)
 
         pattern = PyPIPlugin().metadata_dir_pattern("litellm")
         result = _walk_for_metadata(tmp_path, pattern, "litellm")

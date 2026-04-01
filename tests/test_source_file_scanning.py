@@ -1,13 +1,13 @@
 """Tests for Phase 4 I/O: scanning source and config files for package references.
 
-Module under test: scan_litellm_compromise.source_scanner
+Module under test: scan_supply_chain.source_scanner
 """
 
 import pytest
 
-from scan_litellm_compromise.ecosystem_pypi import PyPIPlugin
-from scan_litellm_compromise.models import ScanResults
-from scan_litellm_compromise.source_scanner import scan_source_and_configs
+from scan_supply_chain.ecosystem_pypi import PyPIPlugin
+from scan_supply_chain.models import ScanResults
+from scan_supply_chain.source_scanner import scan_source_and_configs
 from tests.conftest import make_litellm_threat
 
 

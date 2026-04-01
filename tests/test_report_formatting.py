@@ -1,15 +1,15 @@
 """Tests for Phase 5: summary report and output formatting.
 
-Module under test: scan_litellm_compromise.report
+Module under test: scan_supply_chain.report
 """
 
-from scan_litellm_compromise.models import (
+from scan_supply_chain.models import (
     ConfigReference,
     Installation,
     ScanResults,
     SourceReference,
 )
-from scan_litellm_compromise.report import (
+from scan_supply_chain.report import (
     print_config_refs,
     print_source_refs,
     print_threat_report,

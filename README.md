@@ -19,8 +19,8 @@ A data-driven scanner that detects indicators of compromise (IOCs) from known **
 
 ```bash
 # Recommended — installs in an isolated environment
-pipx install scan-litellm-compromise
-scan-litellm
+pipx install scan-supply-chain
+scan-supply-chain
 ```
 
 If you don't have pipx: `sudo apt install pipx` (Debian/Ubuntu) or `brew install pipx` (macOS).
@@ -28,24 +28,26 @@ If you don't have pipx: `sudo apt install pipx` (Debian/Ubuntu) or `brew install
 Alternatively, using pip inside a virtual environment:
 
 ```bash
-python3 -m venv /tmp/scanner && /tmp/scanner/bin/pip install scan-litellm-compromise
-/tmp/scanner/bin/scan-litellm
+python3 -m venv /tmp/scanner && /tmp/scanner/bin/pip install scan-supply-chain
+/tmp/scanner/bin/scan-supply-chain
 ```
 
 > **Note:** `pip install` directly will fail on modern Linux distributions (Debian 12+, Ubuntu 23.04+, Fedora 38+) due to [PEP 668](https://peps.python.org/pep-0668/). Use `pipx` or a virtual environment instead.
 
+> **Migrating?** The old package `scan-litellm-compromise` is still available but will not receive updates. The `scan-litellm` CLI alias is included in the new package for backward compatibility.
+
 **Windows:**
 
 ```cmd
-pip install scan-litellm-compromise
-scan-litellm
+pip install scan-supply-chain
+scan-supply-chain
 ```
 
 Or using a virtual environment:
 
 ```cmd
-py -m venv %TEMP%\scanner && %TEMP%\scanner\Scripts\pip install scan-litellm-compromise
-%TEMP%\scanner\Scripts\scan-litellm
+py -m venv %TEMP%\scanner && %TEMP%\scanner\Scripts\pip install scan-supply-chain
+%TEMP%\scanner\Scripts\scan-supply-chain
 ```
 
 ### Option B: Run from source (no install needed)
@@ -53,16 +55,16 @@ py -m venv %TEMP%\scanner && %TEMP%\scanner\Scripts\pip install scan-litellm-com
 **Linux / macOS:**
 
 ```bash
-git clone https://github.com/CognitiveSand/scan_litellm_compromise.git
-cd scan_litellm_compromise
+git clone https://github.com/CognitiveSand/scan-supply-chain.git
+cd scan-supply-chain
 python3 run_scan.py
 ```
 
 **Windows** — double-click **`run_scan.bat`**, or from a terminal:
 
 ```cmd
-git clone https://github.com/CognitiveSand/scan_litellm_compromise.git
-cd scan_litellm_compromise
+git clone https://github.com/CognitiveSand/scan-supply-chain.git
+cd scan-supply-chain
 py run_scan.py
 ```
 
@@ -90,19 +92,19 @@ No dependencies required — uses only the Python 3.11+ standard library.
 
 ```bash
 # Scan for all known threats (default)
-scan-litellm
+scan-supply-chain
 
 # Scan only a specific project directory
-scan-litellm --scan-path /home/user/myproject
+scan-supply-chain --scan-path /home/user/myproject
 
 # Scan for a specific threat only
-scan-litellm --threat axios-2026-03
+scan-supply-chain --threat axios-2026-03
 
 # List available threat profiles
-scan-litellm --list-threats
+scan-supply-chain --list-threats
 
 # Use a custom threat profile
-scan-litellm --threat-file ./my-threat.toml
+scan-supply-chain --threat-file ./my-threat.toml
 ```
 
 ## Threat Library
@@ -111,7 +113,7 @@ Threat profiles are TOML files that define everything about a specific supply ch
 
 ### Built-in threats
 
-Ship with the package in `scan_litellm_compromise/threats/`. Updated via `pip install --upgrade`.
+Ship with the package in `scan_supply_chain/threats/`. Updated via `pip install --upgrade`.
 
 ### User-defined threats
 
@@ -274,7 +276,7 @@ The scanner runs a 5-phase pipeline for each threat profile:
 ## Project Structure
 
 ```
-scan_litellm_compromise/
+scan_supply_chain/
   threats/               Threat profile TOML files (user-extensible)
     litellm-2026-03.toml   LiteLLM PyPI compromise
     axios-2026-03.toml     Axios npm compromise

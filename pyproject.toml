@@ -1,6 +1,6 @@
 [project]
-name = "scan-litellm-compromise"
-version = "0.5.0"
+name = "scan-supply-chain"
+version = "0.5.1"
 description = "Supply chain compromise scanner — detects known PyPI and npm attacks via data-driven threat profiles"
 readme = "README.md"
 license = "MIT"
@@ -10,10 +10,12 @@ requires-python = ">=3.11"
 test = ["pytest"]
 
 [project.scripts]
-scan-litellm = "scan_litellm_compromise.scanner:main"
+scan-supply-chain = "scan_supply_chain.scanner:main"
+# Backward compatibility alias
+scan-litellm = "scan_supply_chain.scanner:main"
 
 [tool.setuptools.package-data]
-scan_litellm_compromise = ["threats/*.toml"]
+scan_supply_chain = ["threats/*.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,12 +1,12 @@
 """Tests for the detection engine: regex patterns from ecosystem plugins.
 
-Module under test: scan_litellm_compromise.ecosystem_pypi, ecosystem_npm
+Module under test: scan_supply_chain.ecosystem_pypi, ecosystem_npm
 """
 
 import pytest
 
-from scan_litellm_compromise.ecosystem_pypi import PyPIPlugin
-from scan_litellm_compromise.ecosystem_npm import NpmPlugin
+from scan_supply_chain.ecosystem_pypi import PyPIPlugin
+from scan_supply_chain.ecosystem_npm import NpmPlugin
 
 
 # ── PyPI metadata dir pattern ────────────────────────────────────────

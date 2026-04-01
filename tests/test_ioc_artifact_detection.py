@@ -1,6 +1,6 @@
 """Tests for Phase 3: IOC artifact detection.
 
-Module under test: scan_litellm_compromise.ioc_scanner
+Module under test: scan_supply_chain.ioc_scanner
 """
 
 import socket
@@ -8,14 +8,14 @@ import subprocess
 from pathlib import Path
 
 
-from scan_litellm_compromise.ioc_scanner import (
+from scan_supply_chain.ioc_scanner import (
     _check_known_paths,
     _resolve_c2_ips,
     _scan_for_c2_connections,
     _scan_for_malicious_pods,
     _scan_walk_files,
 )
-from scan_litellm_compromise.models import ScanResults
+from scan_supply_chain.models import ScanResults
 from tests.conftest import StubPolicy, make_litellm_threat
 
 
@@ -76,7 +76,7 @@ class TestScanWalkFiles:
         (site_pkg / "litellm_init.pth").write_text("import os")
 
         # Use walk_files with no sha256 requirement so any matching filename is flagged
-        from scan_litellm_compromise.threat_profile import WalkFileIOC
+        from scan_supply_chain.threat_profile import WalkFileIOC
 
         threat = make_litellm_threat(
             walk_files=[
@@ -116,7 +116,7 @@ class TestScanWalkFiles:
     def test_respects_explicit_roots(self, tmp_path, capsys):
         (tmp_path / "litellm_init.pth").write_text("import os")
 
-        from scan_litellm_compromise.threat_profile import WalkFileIOC
+        from scan_supply_chain.threat_profile import WalkFileIOC
 
         threat = make_litellm_threat(
             walk_files=[
@@ -150,7 +150,7 @@ class TestResolveC2Ips:
     def test_does_not_call_dns_when_disabled(self, monkeypatch):
         dns_called = []
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.socket.gethostbyname",
+            "scan_supply_chain.ioc_scanner.socket.gethostbyname",
             lambda d: dns_called.append(d) or "1.2.3.4",
         )
 
@@ -161,7 +161,7 @@ class TestResolveC2Ips:
 
     def test_adds_live_ip_when_dns_enabled(self, monkeypatch):
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.socket.gethostbyname",
+            "scan_supply_chain.ioc_scanner.socket.gethostbyname",
             lambda d: "99.99.99.99",
         )
 
@@ -176,7 +176,7 @@ class TestResolveC2Ips:
         first_domain = list(threat.c2.ips.keys())[0]
         known_ip = threat.c2.ips[first_domain][0]
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.socket.gethostbyname",
+            "scan_supply_chain.ioc_scanner.socket.gethostbyname",
             lambda d: known_ip,
         )
 
@@ -186,7 +186,7 @@ class TestResolveC2Ips:
 
     def test_handles_dns_failure_gracefully(self, monkeypatch):
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.socket.gethostbyname",
+            "scan_supply_chain.ioc_scanner.socket.gethostbyname",
             lambda d: (_ for _ in ()).throw(
                 socket.gaierror("Name resolution failed"),
             ),
@@ -208,11 +208,11 @@ class TestScanForC2Connections:
     def _stub_ss(self, monkeypatch, stdout):
         stdout_bytes = stdout.encode() if isinstance(stdout, str) else stdout
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.shutil.which",
+            "scan_supply_chain.ioc_scanner.shutil.which",
             lambda cmd: "/usr/bin/ss",
         )
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.subprocess.run",
+            "scan_supply_chain.ioc_scanner.subprocess.run",
             lambda *a, **kw: subprocess.CompletedProcess(
                 args=a[0],
                 returncode=0,
@@ -250,7 +250,7 @@ class TestScanForC2Connections:
 
     def test_skips_when_network_tool_unavailable(self, monkeypatch, capsys):
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.shutil.which",
+            "scan_supply_chain.ioc_scanner.shutil.which",
             lambda cmd: None,
         )
 
@@ -275,11 +275,11 @@ class TestScanForC2Connections:
 
     def test_handles_subprocess_timeout(self, monkeypatch, capsys):
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.shutil.which",
+            "scan_supply_chain.ioc_scanner.shutil.which",
             lambda cmd: "/usr/bin/ss",
         )
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.subprocess.run",
+            "scan_supply_chain.ioc_scanner.subprocess.run",
             lambda *a, **kw: (_ for _ in ()).throw(
                 subprocess.TimeoutExpired(cmd="ss", timeout=5),
             ),
@@ -301,11 +301,11 @@ class TestScanForC2Connections:
 class TestScanForMaliciousPods:
     def test_flags_node_setup_pods(self, monkeypatch, capsys):
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.shutil.which",
+            "scan_supply_chain.ioc_scanner.shutil.which",
             lambda cmd: "/usr/bin/kubectl" if cmd == "kubectl" else None,
         )
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.subprocess.run",
+            "scan_supply_chain.ioc_scanner.subprocess.run",
             lambda *a, **kw: subprocess.CompletedProcess(
                 args=a[0],
                 returncode=0,
@@ -322,11 +322,11 @@ class TestScanForMaliciousPods:
 
     def test_reports_clean_when_no_suspicious_pods(self, monkeypatch, capsys):
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.shutil.which",
+            "scan_supply_chain.ioc_scanner.shutil.which",
             lambda cmd: "/usr/bin/kubectl" if cmd == "kubectl" else None,
         )
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.subprocess.run",
+            "scan_supply_chain.ioc_scanner.subprocess.run",
             lambda *a, **kw: subprocess.CompletedProcess(
                 args=a[0],
                 returncode=0,
@@ -344,7 +344,7 @@ class TestScanForMaliciousPods:
 
     def test_skips_when_kubectl_not_installed(self, monkeypatch, capsys):
         monkeypatch.setattr(
-            "scan_litellm_compromise.ioc_scanner.shutil.which",
+            "scan_supply_chain.ioc_scanner.shutil.which",
             lambda cmd: None,
         )
 
@@ -357,7 +357,7 @@ class TestScanForMaliciousPods:
     def test_skips_when_no_pod_patterns(self, monkeypatch, capsys):
         threat = make_litellm_threat(
             kubernetes=__import__(
-                "scan_litellm_compromise.threat_profile", fromlist=["KubernetesIOC"]
+                "scan_supply_chain.threat_profile", fromlist=["KubernetesIOC"]
             ).KubernetesIOC(),
         )
         results = ScanResults()

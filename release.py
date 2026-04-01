@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 PYPROJECT = Path("pyproject.toml")
-INIT_PY = Path("scan_litellm_compromise/__init__.py")
+INIT_PY = Path("scan_supply_chain/__init__.py")
 CHANGELOG = Path("CHANGELOG.md")
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
@@ -84,7 +84,7 @@ def _run_preflight_checks() -> None:
     _run_check("pytest", ["python3", "-m", "pytest", "--tb=short", "-q"])
     _run_check("ruff check", ["ruff", "check", "."])
     _run_check("ruff format", ["ruff", "format", "--check", "."])
-    _run_check("mypy", ["mypy", "scan_litellm_compromise/"])
+    _run_check("mypy", ["mypy", "scan_supply_chain/"])
 
 
 # ── Version bump ────────────────────────────────────────────────────────

@@ -1,12 +1,12 @@
 """Tests for the source scanner's pure pattern-matching helpers.
 
-Module under test: scan_litellm_compromise.source_scanner
+Module under test: scan_supply_chain.source_scanner
 """
 
 import pytest
 
-from scan_litellm_compromise.ecosystem_pypi import PyPIPlugin
-from scan_litellm_compromise.source_scanner import _is_config_file
+from scan_supply_chain.ecosystem_pypi import PyPIPlugin
+from scan_supply_chain.source_scanner import _is_config_file
 
 
 # ── _is_config_file ──────────────────────────────────────────────────

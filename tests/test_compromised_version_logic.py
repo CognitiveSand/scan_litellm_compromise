@@ -1,9 +1,9 @@
 """Tests for the core domain logic: is this version compromised?
 
-Module under test: scan_litellm_compromise.models
+Module under test: scan_supply_chain.models
 """
 
-from scan_litellm_compromise.models import (
+from scan_supply_chain.models import (
     ConfigReference,
     Installation,
     ScanResults,
