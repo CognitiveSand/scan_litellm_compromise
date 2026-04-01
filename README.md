@@ -208,9 +208,42 @@ The scanner runs a 5-phase pipeline for each threat profile:
 |-------|-------------------|
 | 1 | Package metadata directories across the filesystem (PyPI: `dist-info`/`egg-info`; npm: `node_modules/*/package.json`) |
 | 2 | Package version from metadata — flags compromised versions |
-| 3 | IOC artifacts: backdoor files, persistence mechanisms, temp staging files, C2 network connections, suspicious Kubernetes pods, phantom dependencies, Windows Registry/Tasks |
+| 3 | IOC artifacts, persistence, caches, history (see below) |
 | 4 | Source files and dependency configs referencing the package, flagging pinned compromised versions |
-| 5 | Per-threat summary, verdicts, and remediation guidance |
+| 5 | Per-threat summary with confidence tier and remediation guidance |
+
+### Phase 3: Evidence Collection
+
+Phase 3 runs multiple sub-scanners to build a comprehensive evidence picture:
+
+| Sub-scanner | What It Checks |
+|-------------|----------------|
+| **IOC file walk** | Backdoor files (e.g., `litellm_init.pth`) by name and optional SHA-256 hash |
+| **Known paths** | Platform-specific IOC paths from threat profile (`~/.config/sysmon/`, `%APPDATA%\sysmon\`, etc.) |
+| **C2 connections** | Active TCP connections matched against C2 infrastructure with structured `ss`/`lsof`/`netstat` parsing — reports process name, PID, and executable path |
+| **Kubernetes pods** | Suspicious pods (e.g., `node-setup-*`) in specified namespace |
+| **Phantom dependencies** | Packages that should not exist (e.g., `plain-crypto-js`). Structural JSON parsing for `package-lock.json`, line-anchored matching for `yarn.lock` and `pnpm-lock.yaml` with version extraction |
+| **Windows checks** | Registry Run keys and Scheduled Tasks for persistence keywords |
+| **Persistence scan** | Generic persistence locations: crontab, shell rc files (`.bashrc`, `.zshrc`), systemd user services, XDG autostart, `/tmp` scripts, macOS LaunchAgents |
+| **Cache scan** | Package manager caches: pip (`~/.cache/pip`), npm (`~/.npm/_cacache`), pnpm store — ecosystem-gated |
+| **History scan** | Shell history (`.bash_history`, `.zsh_history`) for `pip install`/`npm install`/`yarn add`/`pnpm add` commands mentioning the package |
+
+### Phase 4: Smart Source Detection
+
+For Python files, the scanner uses `ast.parse()` to detect real imports and attribute access (`import litellm`, `from litellm import X`, `litellm.completion()`). This eliminates false positives from string literals, regex patterns, and comments that merely mention the package name. On `SyntaxError`, it falls back to regex matching. Non-Python source files (`.js`, `.ts`) use regex.
+
+### Evidence Scoring
+
+Instead of a binary clean/compromised verdict, findings are scored into four confidence tiers:
+
+| Tier | Meaning | Triggers |
+|------|---------|----------|
+| **CRITICAL** | Active compromise with live C2 | Compromised version + active C2 connection |
+| **HIGH** | Strong compromise indicators | Compromised version + IOC file or phantom dependency |
+| **MEDIUM** | Likely compromised | Compromised version alone, or persistence artifact |
+| **LOW** | Circumstantial evidence | Source reference, cache trace, or install history only |
+
+The confidence tier is displayed in the scan report alongside the existing per-finding detail.
 
 ## Limitations
 
@@ -227,7 +260,11 @@ The scanner runs a 5-phase pipeline for each threat profile:
 |---------|-------|-------|---------------|
 | Package detection | `/home`, `/opt`, `/usr`, `/srv`, `/var` | `/Users`, `/opt/homebrew`, `/usr/local`, `/Library` | `%USERPROFILE%`, `%APPDATA%`, `Program Files` |
 | Conda/pipx/nvm detection | `/opt/conda`, `~/.local/share/pipx` | Homebrew Caskroom, `~/.local/share/pipx` | `%LOCALAPPDATA%\Miniconda3`, `%LOCALAPPDATA%\pipx` |
-| Network connections | `ss -tnp` | `lsof -i -P -n` | `netstat -ano` |
+| Network (C2 detection) | `ss -tnp` with PID + `/proc` enrichment | `lsof -i -P -n` with PID | `netstat -ano` |
+| Persistence scan | crontab, shell rc, systemd user, XDG autostart, `/tmp` | crontab, shell rc, LaunchAgents | Registry Run keys, Scheduled Tasks |
+| Cache scan | `~/.cache/pip`, `~/.npm/_cacache`, pnpm store | Same (macOS pip path) | `%LOCALAPPDATA%\pip\Cache` |
+| History scan | `.bash_history`, `.zsh_history` | Same | Same |
+| Python detection | AST-based (no false positives from string literals) | Same | Same |
 | ANSI terminal colors | Native | Native | Auto-enabled via Virtual Terminal Processing |
 
 ## If Compromise Is Detected
@@ -283,19 +320,26 @@ scan_supply_chain/
   ecosystem_npm.py       npm: node_modules, package.json, JS/TS patterns
   scanner.py             Orchestrator (multi-threat CLI)
   config.py              Generic constants (skip dirs)
-  models.py              Typed data structures
+  models.py              Data structures + Confidence/Finding enums
+  scoring.py             Evidence scoring (findings → confidence tier)
   formatting.py          Terminal output (ANSI with Windows support)
   platform_policy.py     Platform abstraction (Strategy pattern)
   platform_linux.py      Linux paths and commands
   platform_darwin.py     macOS paths and commands
   platform_windows.py    Windows paths and commands
-  ioc_windows.py         Windows-only IOC checks (Registry, Tasks)
+  search_roots.py        Deduplicated search root computation
   discovery.py           Phase 1 — find package metadata
   version_checker.py     Phase 2 — read package version
-  ioc_scanner.py         Phase 3 — IOC artifact detection
+  ioc_scanner.py         Phase 3 — IOC orchestrator
+  ioc_windows.py         Windows-only IOC checks (Registry, Tasks)
+  network_scanner.py     Structured ss/lsof parsing with PID correlation
+  persistence_scanner.py Crontab, shell rc, systemd, LaunchAgents
+  cache_scanner.py       pip/npm/pnpm cache scanning
+  history_scanner.py     Shell history for install commands
+  ast_scanner.py         AST-based Python import detection
   source_scanner.py      Phase 4 — source/config file scanning
-  report.py              Phase 5 — summary and remediation
-tests/                   pytest test suite (230 tests)
+  report.py              Phase 5 — summary with confidence tiers
+tests/                   pytest test suite (348 tests)
 run_scan.py              Direct entry point
 run_scan.bat             Double-click launcher for Windows
 ```
