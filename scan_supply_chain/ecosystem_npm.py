@@ -161,6 +161,10 @@ class NpmPlugin:
                             lock_path = dp / fn
                             for hit in _check_yarn_lock(lock_path, names, seen):
                                 found.append(hit)
+                        elif fn == "pnpm-lock.yaml":
+                            lock_path = dp / fn
+                            for hit in _check_pnpm_lock(lock_path, names, seen):
+                                found.append(hit)
                     # Prune unproductive subtrees
                     dirnames[:] = [
                         d
@@ -242,6 +246,39 @@ def _check_yarn_lock(
     for name in names:
         # Match "name@" at start of line (yarn.lock entry header)
         if f"\n{name}@" in text or text.startswith(f"{name}@"):
+            key = f"{lock_path}:{name}"
+            if key not in seen:
+                seen.add(key)
+                found.append(f"phantom:{name} in {lock_path}")
+
+    return found
+
+
+def _check_pnpm_lock(
+    lock_path: Path,
+    names: list[str],
+    seen: set[str],
+) -> list[str]:
+    """Check pnpm-lock.yaml for phantom dependencies by line matching.
+
+    pnpm-lock.yaml uses two key formats across versions:
+      v6 (packages section):  /plain-crypto-js@4.2.1:
+      v9 (packages section):  plain-crypto-js@4.2.1:
+      v6/v9 (importers):        plain-crypto-js:
+    The regex ^/?{name}@ covers both package key formats.
+    """
+    found: list[str] = []
+    try:
+        text = lock_path.read_text(errors="ignore")
+    except (PermissionError, OSError):
+        return found
+
+    for name in names:
+        escaped = re.escape(name)
+        # Match packages/snapshots keys: /name@version: (v6) or name@version: (v9)
+        # Keys may be indented with whitespace in the YAML
+        pattern = re.compile(rf"^\s*/?{escaped}@", re.MULTILINE)
+        if pattern.search(text):
             key = f"{lock_path}:{name}"
             if key not in seen:
                 seen.add(key)

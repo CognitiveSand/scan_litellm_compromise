@@ -93,7 +93,6 @@ No dependencies required — uses only the Python 3.11+ standard library.
 # Scan for all known threats (default)
 scan-supply-chain
 
-# Scan only a specific project directory
 # Scan for a specific threat only
 scan-supply-chain --threat axios-2026-03
 
@@ -220,6 +219,7 @@ The scanner runs a 5-phase pipeline for each threat profile:
 - **Does not inspect Docker image layers, CI/CD runner caches, or remote systems.**
 - **Root-owned paths (`/root` on Linux) are excluded.**
 - **Windows Registry scanning is best-effort.**
+- **Broad filesystem walk by design.** The scanner walks system-wide search roots (e.g., `/home`, `/opt`, `/usr`) to maximize detection coverage. A fast-path filter skips files that don't contain the package name before line-by-line scanning, but the initial walk can be slow on machines with large filesystems. This is acceptable for incident response; it is not designed for continuous fleet monitoring.
 
 ## Platform Support
 

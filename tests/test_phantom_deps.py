@@ -10,6 +10,7 @@ import json
 from scan_supply_chain.ecosystem_npm import (
     NpmPlugin,
     _check_package_lock_json,
+    _check_pnpm_lock,
     _check_yarn_lock,
 )
 from scan_supply_chain.ecosystem_pypi import PyPIPlugin
@@ -153,6 +154,93 @@ class TestYarnLockParsing:
         found = _check_yarn_lock(lockfile, ["plain-crypto-js"], set())
 
         assert found == []
+
+
+# ── npm: pnpm-lock.yaml line-anchored parsing ─────────────────────────
+
+
+class TestPnpmLockParsing:
+    def test_finds_phantom_in_v6_format(self, tmp_path):
+        # @req FR-17
+        lockfile = tmp_path / "pnpm-lock.yaml"
+        lockfile.write_text(
+            "lockfileVersion: '6.0'\n"
+            "packages:\n"
+            "  /plain-crypto-js@4.2.1:\n"
+            "    resolution: {integrity: sha512-abc}\n"
+            "    dev: false\n"
+        )
+
+        found = _check_pnpm_lock(lockfile, ["plain-crypto-js"], set())
+
+        assert len(found) == 1
+        assert "plain-crypto-js" in found[0]
+
+    def test_finds_phantom_in_v9_format(self, tmp_path):
+        # @req FR-17
+        lockfile = tmp_path / "pnpm-lock.yaml"
+        lockfile.write_text(
+            "lockfileVersion: '9.0'\n"
+            "packages:\n"
+            "  plain-crypto-js@4.2.1:\n"
+            "    resolution: {integrity: sha512-abc}\n"
+        )
+
+        found = _check_pnpm_lock(lockfile, ["plain-crypto-js"], set())
+
+        assert len(found) == 1
+        assert "plain-crypto-js" in found[0]
+
+    def test_ignores_packages_not_in_names_list(self, tmp_path):
+        # @req FR-17
+        lockfile = tmp_path / "pnpm-lock.yaml"
+        lockfile.write_text(
+            "lockfileVersion: '9.0'\n"
+            "packages:\n"
+            "  axios@1.14.0:\n"
+            "    resolution: {integrity: sha512-xyz}\n"
+        )
+
+        found = _check_pnpm_lock(lockfile, ["plain-crypto-js"], set())
+
+        assert found == []
+
+    def test_handles_missing_file(self, tmp_path):
+        # @req FR-17 NFR-03
+        lockfile = tmp_path / "nonexistent.yaml"
+
+        found = _check_pnpm_lock(lockfile, ["plain-crypto-js"], set())
+
+        assert found == []
+
+    def test_deduplicates_via_seen_set(self, tmp_path):
+        # @req FR-17
+        lockfile = tmp_path / "pnpm-lock.yaml"
+        lockfile.write_text("packages:\n  /plain-crypto-js@4.2.1:\n    dev: false\n")
+
+        seen = {f"{lockfile}:plain-crypto-js"}
+        found = _check_pnpm_lock(lockfile, ["plain-crypto-js"], seen)
+
+        assert found == []
+
+
+# ── npm: full phantom dep walk (with pnpm) ────────────────────────────
+
+
+class TestNpmPhantomDepWalkWithPnpm:
+    def test_finds_phantom_in_pnpm_lock_during_walk(self, tmp_path):
+        # @req FR-17
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "pnpm-lock.yaml").write_text(
+            "packages:\n  /plain-crypto-js@4.2.1:\n    dev: false\n"
+        )
+
+        plugin = NpmPlugin()
+        found = plugin.find_phantom_deps(["plain-crypto-js"], [str(tmp_path)])
+
+        assert len(found) == 1
+        assert "plain-crypto-js" in found[0]
 
 
 # ── npm: full phantom dep walk ────────────────────────────────────────
