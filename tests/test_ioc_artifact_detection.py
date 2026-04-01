@@ -24,6 +24,7 @@ from tests.conftest import StubPolicy, make_litellm_threat
 
 class TestCheckKnownPaths:
     def test_flags_existing_path_as_ioc(self, tmp_path, capsys):
+        # @req FR-12
         ioc_file = tmp_path / "pglog"
         ioc_file.write_text("exfil data")
 
@@ -34,6 +35,7 @@ class TestCheckKnownPaths:
         assert str(ioc_file) in results.iocs[0]
 
     def test_reports_clean_when_no_paths_exist(self, tmp_path, capsys):
+        # @req FR-12
         results = ScanResults()
         _check_known_paths("test artifacts", [tmp_path / "nope"], results)
 
@@ -42,6 +44,7 @@ class TestCheckKnownPaths:
         assert "None found" in captured
 
     def test_flags_multiple_existing_iocs(self, tmp_path, capsys):
+        # @req FR-12
         (tmp_path / "pglog").write_text("a")
         (tmp_path / ".pg_state").write_text("b")
 
@@ -55,6 +58,7 @@ class TestCheckKnownPaths:
         assert len(results.iocs) == 2
 
     def test_handles_permission_error_on_path_check(self, monkeypatch, capsys):
+        # @req FR-12 NFR-03
         def exists_raises(self):
             raise PermissionError("denied")
 
@@ -71,6 +75,7 @@ class TestCheckKnownPaths:
 
 class TestScanWalkFiles:
     def test_finds_litellm_init_pth(self, tmp_path, capsys):
+        # @req FR-11
         site_pkg = tmp_path / "lib" / "site-packages"
         site_pkg.mkdir(parents=True)
         (site_pkg / "litellm_init.pth").write_text("import os")
@@ -94,6 +99,7 @@ class TestScanWalkFiles:
         assert "litellm_init.pth" in results.iocs[0]
 
     def test_reports_clean_when_no_files_found(self, tmp_path, capsys):
+        # @req FR-11
         (tmp_path / "lib" / "site-packages").mkdir(parents=True)
 
         threat = make_litellm_threat()
@@ -106,6 +112,7 @@ class TestScanWalkFiles:
         assert "None found" in captured
 
     def test_skips_nonexistent_search_roots(self, capsys):
+        # @req FR-11
         threat = make_litellm_threat()
 
         results = ScanResults()
@@ -114,6 +121,7 @@ class TestScanWalkFiles:
         assert results.iocs == []
 
     def test_respects_explicit_roots(self, tmp_path, capsys):
+        # @req FR-11 FR-13
         (tmp_path / "litellm_init.pth").write_text("import os")
 
         from scan_supply_chain.threat_profile import WalkFileIOC
@@ -139,6 +147,7 @@ class TestScanWalkFiles:
 
 class TestResolveC2Ips:
     def test_returns_known_ips_when_dns_disabled(self):
+        # @req FR-14
         threat = make_litellm_threat()
         result = _resolve_c2_ips(threat, resolve_dns=False)
 
@@ -148,6 +157,7 @@ class TestResolveC2Ips:
                 assert ip in result[domain]
 
     def test_does_not_call_dns_when_disabled(self, monkeypatch):
+        # @req FR-14 NFR-05
         dns_called = []
         monkeypatch.setattr(
             "scan_supply_chain.ioc_scanner.socket.gethostbyname",
@@ -160,6 +170,7 @@ class TestResolveC2Ips:
         assert dns_called == []
 
     def test_adds_live_ip_when_dns_enabled(self, monkeypatch):
+        # @req FR-16
         monkeypatch.setattr(
             "scan_supply_chain.ioc_scanner.socket.gethostbyname",
             lambda d: "99.99.99.99",
@@ -172,6 +183,7 @@ class TestResolveC2Ips:
             assert "99.99.99.99" in result[domain]
 
     def test_deduplicates_live_ip_matching_known(self, monkeypatch):
+        # @req FR-16
         threat = make_litellm_threat()
         first_domain = list(threat.c2.ips.keys())[0]
         known_ip = threat.c2.ips[first_domain][0]
@@ -185,6 +197,7 @@ class TestResolveC2Ips:
         assert result[first_domain].count(known_ip) == 1
 
     def test_handles_dns_failure_gracefully(self, monkeypatch):
+        # @req FR-16 NFR-03
         monkeypatch.setattr(
             "scan_supply_chain.ioc_scanner.socket.gethostbyname",
             lambda d: (_ for _ in ()).throw(
@@ -221,6 +234,7 @@ class TestScanForC2Connections:
         )
 
     def test_flags_known_ip_without_dns(self, monkeypatch, capsys):
+        # @req FR-14
         threat = make_litellm_threat()
         known_ip = threat.c2.ips["models.litellm.cloud"][0]
         self._stub_ss(monkeypatch, f"ESTAB  0  0  10.0.0.1:443  {known_ip}:80\n")
@@ -235,6 +249,7 @@ class TestScanForC2Connections:
         assert any("connection:" in ioc and known_ip in ioc for ioc in results.iocs)
 
     def test_reports_clean_when_no_c2_ips_in_output(self, monkeypatch, capsys):
+        # @req FR-14
         self._stub_ss(monkeypatch, "ESTAB  0  0  10.0.0.1:443  1.2.3.4:80\n")
 
         threat = make_litellm_threat()
@@ -249,6 +264,7 @@ class TestScanForC2Connections:
         assert "No suspicious connections" in captured
 
     def test_skips_when_network_tool_unavailable(self, monkeypatch, capsys):
+        # @req FR-14 NFR-03
         monkeypatch.setattr(
             "scan_supply_chain.ioc_scanner.shutil.which",
             lambda cmd: None,
@@ -264,6 +280,7 @@ class TestScanForC2Connections:
         assert results.iocs == []
 
     def test_skips_when_no_network_command_configured(self, capsys):
+        # @req FR-14
         threat = make_litellm_threat()
         policy = StubPolicy()
         policy.network_check_command = None
@@ -274,6 +291,7 @@ class TestScanForC2Connections:
         assert results.iocs == []
 
     def test_handles_subprocess_timeout(self, monkeypatch, capsys):
+        # @req FR-14 NFR-04
         monkeypatch.setattr(
             "scan_supply_chain.ioc_scanner.shutil.which",
             lambda cmd: "/usr/bin/ss",
@@ -300,6 +318,7 @@ class TestScanForC2Connections:
 
 class TestScanForMaliciousPods:
     def test_flags_node_setup_pods(self, monkeypatch, capsys):
+        # @req FR-19
         monkeypatch.setattr(
             "scan_supply_chain.ioc_scanner.shutil.which",
             lambda cmd: "/usr/bin/kubectl" if cmd == "kubectl" else None,
@@ -321,6 +340,7 @@ class TestScanForMaliciousPods:
         assert "k8s-pods:1" in results.iocs[0]
 
     def test_reports_clean_when_no_suspicious_pods(self, monkeypatch, capsys):
+        # @req FR-19
         monkeypatch.setattr(
             "scan_supply_chain.ioc_scanner.shutil.which",
             lambda cmd: "/usr/bin/kubectl" if cmd == "kubectl" else None,
@@ -343,6 +363,7 @@ class TestScanForMaliciousPods:
         assert "No suspicious pods" in captured
 
     def test_skips_when_kubectl_not_installed(self, monkeypatch, capsys):
+        # @req FR-19 NFR-03
         monkeypatch.setattr(
             "scan_supply_chain.ioc_scanner.shutil.which",
             lambda cmd: None,
@@ -355,6 +376,7 @@ class TestScanForMaliciousPods:
         assert results.iocs == []
 
     def test_skips_when_no_pod_patterns(self, monkeypatch, capsys):
+        # @req FR-19
         threat = make_litellm_threat(
             kubernetes=__import__(
                 "scan_supply_chain.threat_profile", fromlist=["KubernetesIOC"]

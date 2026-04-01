@@ -34,6 +34,7 @@ class TestIsConfigFile:
         ],
     )
     def test_recognizes_known_config_files(self, pypi, filename):
+        # @req FR-21
         ext = "." + filename.rsplit(".", 1)[-1] if "." in filename else ""
         assert _is_config_file(
             filename,
@@ -51,6 +52,7 @@ class TestIsConfigFile:
         ],
     )
     def test_recognizes_requirements_variants(self, pypi, filename):
+        # @req FR-21
         assert _is_config_file(
             filename,
             ".txt",
@@ -69,6 +71,7 @@ class TestIsConfigFile:
         ],
     )
     def test_rejects_non_config_files(self, pypi, filename):
+        # @req FR-21
         ext = "." + filename.rsplit(".", 1)[-1] if "." in filename else ""
         assert not _is_config_file(
             filename,
@@ -102,6 +105,7 @@ class TestSourcePatternMatching:
         ],
     )
     def test_matches_import_patterns(self, import_patterns, line):
+        # @req FR-20
         assert self._matches(import_patterns, line)
 
     @pytest.mark.parametrize(
@@ -114,6 +118,7 @@ class TestSourcePatternMatching:
         ],
     )
     def test_rejects_non_import_patterns(self, import_patterns, line):
+        # @req FR-20
         assert not self._matches(import_patterns, line)
 
 
@@ -139,6 +144,7 @@ class TestConfigPatternMatching:
         ],
     )
     def test_matches_dep_patterns(self, dep_patterns, line):
+        # @req FR-21
         assert self._matches(dep_patterns, line)
 
     @pytest.mark.parametrize(
@@ -149,4 +155,5 @@ class TestConfigPatternMatching:
         ],
     )
     def test_rejects_non_dep_patterns(self, dep_patterns, line):
+        # @req FR-21
         assert not self._matches(dep_patterns, line)

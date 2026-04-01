@@ -25,6 +25,7 @@ class TestPyPIExtractVersion:
         return PyPIPlugin()
 
     def test_reads_version_from_metadata_file(self, tmp_path, plugin):
+        # @req FR-08
         dist_info = tmp_path / "litellm-1.82.7.dist-info"
         dist_info.mkdir()
         (dist_info / "METADATA").write_text(
@@ -33,6 +34,7 @@ class TestPyPIExtractVersion:
         assert plugin.extract_version(dist_info) == "1.82.7"
 
     def test_reads_version_from_pkg_info(self, tmp_path, plugin):
+        # @req FR-08
         egg_info = tmp_path / "litellm-1.80.0.egg-info"
         egg_info.mkdir()
         (egg_info / "PKG-INFO").write_text(
@@ -41,6 +43,7 @@ class TestPyPIExtractVersion:
         assert plugin.extract_version(egg_info) == "1.80.0"
 
     def test_prefers_metadata_over_pkg_info(self, tmp_path, plugin):
+        # @req FR-08
         dist_info = tmp_path / "litellm-1.82.7.dist-info"
         dist_info.mkdir()
         (dist_info / "METADATA").write_text("Version: 1.82.7\n")
@@ -48,21 +51,25 @@ class TestPyPIExtractVersion:
         assert plugin.extract_version(dist_info) == "1.82.7"
 
     def test_falls_back_to_dirname_when_no_metadata(self, tmp_path, plugin):
+        # @req FR-08
         dist_info = tmp_path / "litellm-1.82.7.dist-info"
         dist_info.mkdir()
         assert plugin.extract_version(dist_info) == "1.82.7"
 
     def test_falls_back_to_dirname_for_egg_info(self, tmp_path, plugin):
+        # @req FR-08
         egg_info = tmp_path / "litellm-1.80.0.egg-info"
         egg_info.mkdir()
         assert plugin.extract_version(egg_info) == "1.80.0"
 
     def test_returns_none_for_unrecognized_directory(self, tmp_path, plugin):
+        # @req FR-08
         unknown = tmp_path / "unknown-dir"
         unknown.mkdir()
         assert plugin.extract_version(unknown) is None
 
     def test_strips_whitespace_from_version(self, tmp_path, plugin):
+        # @req FR-08
         dist_info = tmp_path / "litellm-1.82.7.dist-info"
         dist_info.mkdir()
         (dist_info / "METADATA").write_text("Version:  1.82.7  \n")
@@ -81,6 +88,7 @@ class TestPyPIExtractVersion:
         ],
     )
     def test_handles_various_version_formats(self, tmp_path, plugin, version):
+        # @req FR-08
         dist_info = tmp_path / f"litellm-{version}.dist-info"
         dist_info.mkdir()
         (dist_info / "METADATA").write_text(f"Version: {version}\n")
@@ -96,6 +104,7 @@ class TestNpmExtractVersion:
         return NpmPlugin()
 
     def test_reads_version_from_package_json(self, tmp_path, plugin):
+        # @req FR-09
         pkg_dir = tmp_path / "axios"
         pkg_dir.mkdir()
         (pkg_dir / "package.json").write_text(
@@ -104,17 +113,20 @@ class TestNpmExtractVersion:
         assert plugin.extract_version(pkg_dir) == "1.14.1"
 
     def test_returns_none_when_no_package_json(self, tmp_path, plugin):
+        # @req FR-09
         pkg_dir = tmp_path / "axios"
         pkg_dir.mkdir()
         assert plugin.extract_version(pkg_dir) is None
 
     def test_returns_none_for_invalid_json(self, tmp_path, plugin):
+        # @req FR-09
         pkg_dir = tmp_path / "axios"
         pkg_dir.mkdir()
         (pkg_dir / "package.json").write_text("not json")
         assert plugin.extract_version(pkg_dir) is None
 
     def test_returns_none_when_version_field_missing(self, tmp_path, plugin):
+        # @req FR-09
         pkg_dir = tmp_path / "axios"
         pkg_dir.mkdir()
         (pkg_dir / "package.json").write_text('{"name": "axios"}')
@@ -126,6 +138,7 @@ class TestNpmExtractVersion:
 
 class TestScanEnvironments:
     def test_reports_compromised_installation(self, tmp_path, capsys):
+        # @req FR-10
         dist_info = tmp_path / "litellm-1.82.7.dist-info"
         dist_info.mkdir()
         (dist_info / "METADATA").write_text("Version: 1.82.7\n")
@@ -141,6 +154,7 @@ class TestScanEnvironments:
         assert "COMPROMISED" in captured
 
     def test_reports_safe_installation(self, tmp_path, capsys):
+        # @req FR-10
         dist_info = tmp_path / "litellm-1.82.6.dist-info"
         dist_info.mkdir()
         (dist_info / "METADATA").write_text("Version: 1.82.6\n")
@@ -155,6 +169,7 @@ class TestScanEnvironments:
         assert "clean" in captured
 
     def test_reports_no_installations_found(self, capsys):
+        # @req FR-10
         threat = make_litellm_threat()
         ecosystem = PyPIPlugin()
         results = ScanResults(compromised_versions=threat.compromised)

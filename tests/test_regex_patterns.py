@@ -28,6 +28,7 @@ class TestPyPIMetadataDirPattern:
         ],
     )
     def test_recognizes_litellm_metadata_dirs(self, pattern, dirname):
+        # @req FR-06
         assert pattern.match(dirname) is not None
 
     @pytest.mark.parametrize(
@@ -42,6 +43,7 @@ class TestPyPIMetadataDirPattern:
         ],
     )
     def test_rejects_non_litellm_dirs(self, pattern, dirname):
+        # @req FR-06
         assert pattern.match(dirname) is None
 
 
@@ -71,6 +73,7 @@ class TestPyPIImportPatterns:
         ],
     )
     def test_matches_litellm_usage(self, patterns, line):
+        # @req FR-20
         assert self._matches(patterns, line)
 
     @pytest.mark.parametrize(
@@ -84,6 +87,7 @@ class TestPyPIImportPatterns:
         ],
     )
     def test_does_not_match_non_litellm_usage(self, patterns, line):
+        # @req FR-20
         assert not self._matches(patterns, line)
 
 
@@ -113,6 +117,7 @@ class TestPyPIDependencyPatterns:
         ],
     )
     def test_matches_litellm_dependency_lines(self, patterns, line):
+        # @req FR-21
         assert self._matches(patterns, line)
 
     @pytest.mark.parametrize(
@@ -124,6 +129,7 @@ class TestPyPIDependencyPatterns:
         ],
     )
     def test_does_not_match_non_litellm_deps(self, patterns, line):
+        # @req FR-21
         assert not self._matches(patterns, line)
 
 
@@ -145,6 +151,7 @@ class TestPyPIPinnedVersion:
         ],
     )
     def test_extracts_pinned_versions(self, pattern, line, expected):
+        # @req FR-22
         match = pattern.search(line)
         assert match is not None
         assert match.group(1) == expected
@@ -159,6 +166,7 @@ class TestPyPIPinnedVersion:
         ],
     )
     def test_does_not_extract_from_non_pinned(self, pattern, line):
+        # @req FR-22
         match = pattern.search(line)
         # Either no match, or not a pinned litellm version
         if match:
@@ -193,6 +201,7 @@ class TestNpmImportPatterns:
         ],
     )
     def test_matches_axios_usage(self, patterns, line):
+        # @req FR-20
         assert self._matches(patterns, line)
 
     @pytest.mark.parametrize(
@@ -204,6 +213,7 @@ class TestNpmImportPatterns:
         ],
     )
     def test_does_not_match_non_axios_usage(self, patterns, line):
+        # @req FR-20
         assert not self._matches(patterns, line)
 
 
@@ -229,6 +239,7 @@ class TestNpmDependencyPatterns:
         ],
     )
     def test_matches_axios_dependency_lines(self, patterns, line):
+        # @req FR-21
         assert self._matches(patterns, line)
 
     @pytest.mark.parametrize(
@@ -239,6 +250,7 @@ class TestNpmDependencyPatterns:
         ],
     )
     def test_does_not_match_non_axios_deps(self, patterns, line):
+        # @req FR-21
         assert not self._matches(patterns, line)
 
 
@@ -258,6 +270,7 @@ class TestNpmPinnedVersion:
         ],
     )
     def test_extracts_pinned_versions(self, pattern, line, expected):
+        # @req FR-22
         match = pattern.search(line)
         assert match is not None
         assert match.group(1) == expected
@@ -270,5 +283,6 @@ class TestNpmPinnedVersion:
         ],
     )
     def test_does_not_extract_ranged_versions(self, pattern, line):
+        # @req FR-22
         match = pattern.search(line)
         assert match is None

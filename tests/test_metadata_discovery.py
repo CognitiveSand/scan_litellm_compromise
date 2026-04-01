@@ -17,6 +17,7 @@ from scan_supply_chain.ecosystem_pypi import PyPIPlugin
 
 class TestWalkForMetadata:
     def test_finds_dist_info_in_site_packages(self, tmp_path):
+        # @req FR-06
         dist_info = tmp_path / "lib" / "site-packages" / "litellm-1.82.7.dist-info"
         dist_info.mkdir(parents=True)
 
@@ -27,6 +28,7 @@ class TestWalkForMetadata:
         assert result[0].name == "litellm-1.82.7.dist-info"
 
     def test_finds_multiple_installs_in_nested_envs(self, tmp_path):
+        # @req FR-06
         (tmp_path / "venv1" / "lib" / "litellm-1.82.6.dist-info").mkdir(parents=True)
         (tmp_path / "venv2" / "lib" / "litellm-1.82.7.dist-info").mkdir(parents=True)
 
@@ -36,6 +38,7 @@ class TestWalkForMetadata:
         assert len(result) == 2
 
     def test_skips_pycache_directories(self, tmp_path):
+        # @req FR-06
         (tmp_path / "__pycache__" / "litellm-1.82.7.dist-info").mkdir(parents=True)
 
         pattern = PyPIPlugin().metadata_dir_pattern("litellm")
@@ -44,6 +47,7 @@ class TestWalkForMetadata:
         assert result == []
 
     def test_returns_empty_for_directory_without_package(self, tmp_path):
+        # @req FR-06
         (tmp_path / "lib" / "site-packages" / "requests-2.31.dist-info").mkdir(
             parents=True
         )
@@ -54,6 +58,7 @@ class TestWalkForMetadata:
         assert result == []
 
     def test_finds_egg_info_directories(self, tmp_path):
+        # @req FR-06
         (tmp_path / "litellm-1.80.0.egg-info").mkdir()
 
         pattern = PyPIPlugin().metadata_dir_pattern("litellm")
@@ -63,6 +68,7 @@ class TestWalkForMetadata:
         assert result[0].name == "litellm-1.80.0.egg-info"
 
     def test_handles_permission_error_gracefully(self, tmp_path, monkeypatch):
+        # @req FR-06 NFR-03
         def walk_that_raises(path, **kwargs):
             raise PermissionError("denied")
 
@@ -79,6 +85,7 @@ class TestWalkForMetadata:
 
 class TestWalkForNodeModules:
     def test_finds_axios_in_node_modules(self, tmp_path):
+        # @req FR-07
         pkg_dir = tmp_path / "project" / "node_modules" / "axios"
         pkg_dir.mkdir(parents=True)
         (pkg_dir / "package.json").write_text('{"version": "1.14.1"}')
@@ -89,6 +96,7 @@ class TestWalkForNodeModules:
         assert result[0].name == "axios"
 
     def test_ignores_dir_without_package_json(self, tmp_path):
+        # @req FR-07
         (tmp_path / "node_modules" / "axios").mkdir(parents=True)
         # No package.json
 
@@ -97,6 +105,7 @@ class TestWalkForNodeModules:
         assert result == []
 
     def test_finds_nested_node_modules(self, tmp_path):
+        # @req FR-07
         pkg1 = tmp_path / "proj1" / "node_modules" / "axios"
         pkg1.mkdir(parents=True)
         (pkg1 / "package.json").write_text('{"version": "1.14.0"}')
@@ -115,6 +124,7 @@ class TestWalkForNodeModules:
 
 class TestDeduplicateByRealpath:
     def test_removes_symlink_duplicates(self, tmp_path):
+        # @req FR-06 FR-07
         real_dir = tmp_path / "real" / "litellm-1.82.7.dist-info"
         real_dir.mkdir(parents=True)
         link_dir = tmp_path / "link"
@@ -126,6 +136,7 @@ class TestDeduplicateByRealpath:
         assert len(result) == 1
 
     def test_keeps_distinct_paths(self, tmp_path):
+        # @req FR-06 FR-07
         dir_a = tmp_path / "a" / "litellm-1.82.7.dist-info"
         dir_b = tmp_path / "b" / "litellm-1.82.8.dist-info"
         dir_a.mkdir(parents=True)
@@ -141,6 +152,7 @@ class TestDeduplicateByRealpath:
 
 class TestFindPackageMetadata:
     def test_finds_pypi_package_from_roots(self, tmp_path):
+        # @req FR-06
         site_pkg = tmp_path / "lib" / "site-packages"
         (site_pkg / "litellm-1.82.7.dist-info").mkdir(parents=True)
 
@@ -150,6 +162,7 @@ class TestFindPackageMetadata:
         assert len(result) == 1
 
     def test_returns_empty_when_no_package_installed(self, tmp_path):
+        # @req FR-06
         (tmp_path / "lib" / "site-packages" / "flask-3.0.dist-info").mkdir(parents=True)
 
         ecosystem = PyPIPlugin()
@@ -158,6 +171,7 @@ class TestFindPackageMetadata:
         assert result == []
 
     def test_uses_explicit_roots(self, tmp_path):
+        # @req FR-06 FR-13
         target = tmp_path / "myproject"
         (target / "venv" / "lib" / "litellm-1.82.7.dist-info").mkdir(parents=True)
 
