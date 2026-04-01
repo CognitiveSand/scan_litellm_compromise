@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 — 2026-04-01
+
+### Performance
+- **Root deduplication at source** — `build_search_roots()` now removes subdirectory overlaps before returning. On Linux, `/home/me` was a subtree of `/home` — every phase walked the user's home directory twice. Eliminates redundant walks across all phases.
+- **IOC walk pruning** — `_scan_walk_files` now skips `.git`, `node_modules`, `__pycache__`, and other unproductive directories. Previously walked into `node_modules` trees (100k+ entries) searching for `.pth` files that cannot exist there.
+- **Ecosystem plugin caching** — `get_ecosystem()` returns cached instances. For npm, avoids re-running `npm root -g` (~300ms) per threat. Search roots are also cached per ecosystem in the orchestrator.
+- **String-based file dedup** — Source scanner uses `str(file_path)` instead of `Path.resolve()` for deduplication. Eliminates ~50k `realpath()` syscalls on large codebases. Safe because roots are pre-deduplicated.
+
+### Added
+- 10 new tests (root dedup, IOC pruning, ecosystem cache). 286 tests total.
+
 ## 0.6.1 — 2026-04-01
 
 ### Fixed
