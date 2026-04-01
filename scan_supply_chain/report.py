@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .formatting import BOLD, GREEN, RED, RESET, YELLOW, print_separator
-from .models import ConfigReference, ScanResults, SourceReference
+from .models import Confidence, ConfigReference, ScanResults, SourceReference
+from .scoring import compute_confidence
 
 if TYPE_CHECKING:
     from .threat_profile import ThreatProfile
@@ -128,6 +129,23 @@ def _print_stats(results: ScanResults, threat: ThreatProfile) -> None:
             f"  {RED}{BOLD}Configs pinned to bad version:   "
             f"{len(compromised_configs)}{RESET}"
         )
+
+    confidence = compute_confidence(results.findings)
+    if confidence is not None:
+        color = _confidence_color(confidence)
+        print(f"  {color}Confidence:                     {confidence.value}{RESET}")
+
+
+_CONFIDENCE_COLORS = {
+    Confidence.LOW: YELLOW,
+    Confidence.MEDIUM: YELLOW + BOLD,
+    Confidence.HIGH: RED,
+    Confidence.CRITICAL: RED + BOLD,
+}
+
+
+def _confidence_color(confidence: Confidence) -> str:
+    return _CONFIDENCE_COLORS.get(confidence, BOLD)
 
 
 # ── Verdicts ─────────────────────────────────────────────────────────────

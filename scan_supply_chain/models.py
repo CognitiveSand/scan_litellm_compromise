@@ -1,6 +1,7 @@
 """Data structures for scan results."""
 
 from dataclasses import dataclass, field
+from enum import Enum
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,38 @@ class ConfigReference:
     pinned_version: str | None = None
 
 
+class Confidence(Enum):
+    """4-tier evidence confidence level."""
+
+    LOW = "LOW"  # source ref or cache trace only
+    MEDIUM = "MEDIUM"  # compromised version OR persistence artifact
+    HIGH = "HIGH"  # version + IOC file or phantom dep
+    CRITICAL = "CRITICAL"  # version + IOC + active C2 connection
+
+
+class FindingCategory(Enum):
+    """What type of evidence a finding represents."""
+
+    VERSION_MATCH = "version_match"
+    IOC_FILE = "ioc_file"
+    C2_CONNECTION = "c2_connection"
+    PERSISTENCE = "persistence"
+    CACHE_TRACE = "cache_trace"
+    HISTORY = "history"
+    SOURCE_REF = "source_ref"
+    PHANTOM_DEP = "phantom_dep"
+
+
+@dataclass(frozen=True)
+class Finding:
+    """A single piece of evidence from any scan phase."""
+
+    category: FindingCategory
+    description: str
+    evidence: str  # path, command output, version string, etc.
+    weight: int  # 1=low, 2=medium, 3=high, 4=critical
+
+
 @dataclass
 class ScanResults:
     """Aggregated results from all scan phases for a single threat."""
@@ -40,6 +73,7 @@ class ScanResults:
     iocs: list[str] = field(default_factory=list)
     source_refs: list[SourceReference] = field(default_factory=list)
     config_refs: list[ConfigReference] = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
 
     @property
     def compromised_installations(self) -> list[Installation]:
