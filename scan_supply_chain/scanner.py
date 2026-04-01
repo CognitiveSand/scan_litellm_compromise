@@ -198,9 +198,12 @@ def main():
 
     # Run pipeline for each threat
     all_results: list[tuple[ThreatProfile, ScanResults]] = []
+    roots_cache: dict[str, list[str]] = {}
     for threat in threats:
         ecosystem = get_ecosystem(threat.ecosystem)
-        roots = build_search_roots(policy, ecosystem)
+        if threat.ecosystem not in roots_cache:
+            roots_cache[threat.ecosystem] = build_search_roots(policy, ecosystem)
+        roots = roots_cache[threat.ecosystem]
         results = _scan_single_threat(
             threat,
             policy,

@@ -74,14 +74,28 @@ class EcosystemPlugin(Protocol):
         ...
 
 
+_ecosystem_cache: dict[str, EcosystemPlugin] = {}
+
+
 def get_ecosystem(ecosystem_name: str) -> EcosystemPlugin:
-    """Factory: return the correct plugin for the ecosystem name."""
+    """Factory: return a cached plugin for the ecosystem name.
+
+    Plugins are stateless — one instance per ecosystem suffices.
+    For npm, this avoids re-running 'npm root -g' on each call.
+    """
+    if ecosystem_name in _ecosystem_cache:
+        return _ecosystem_cache[ecosystem_name]
+
     if ecosystem_name == "pypi":
         from .ecosystem_pypi import PyPIPlugin
 
-        return PyPIPlugin()
-    if ecosystem_name == "npm":
+        plugin: EcosystemPlugin = PyPIPlugin()
+    elif ecosystem_name == "npm":
         from .ecosystem_npm import NpmPlugin
 
-        return NpmPlugin()
-    raise ValueError(f"Unknown ecosystem: {ecosystem_name!r}")
+        plugin = NpmPlugin()
+    else:
+        raise ValueError(f"Unknown ecosystem: {ecosystem_name!r}")
+
+    _ecosystem_cache[ecosystem_name] = plugin
+    return plugin

@@ -32,6 +32,24 @@ class TestEntryPoints:
         assert scripts["scan-supply-chain"] == scripts["scan-litellm"]
 
 
+class TestEcosystemCache:
+    def test_pypi_returns_same_instance(self):
+        from scan_supply_chain.ecosystem_base import _ecosystem_cache, get_ecosystem
+
+        _ecosystem_cache.clear()
+        first = get_ecosystem("pypi")
+        second = get_ecosystem("pypi")
+        assert first is second
+
+    def test_npm_returns_same_instance(self):
+        from scan_supply_chain.ecosystem_base import _ecosystem_cache, get_ecosystem
+
+        _ecosystem_cache.clear()
+        first = get_ecosystem("npm")
+        second = get_ecosystem("npm")
+        assert first is second
+
+
 class TestVersionConsistency:
     def test_init_version_matches_pyproject(self):
         # @req NFR-12
