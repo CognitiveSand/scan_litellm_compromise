@@ -166,18 +166,10 @@ class NpmPlugin:
                             for hit in _check_pnpm_lock(lock_path, names, seen):
                                 found.append(hit)
                     # Prune unproductive subtrees
+                    from .config import PHANTOM_WALK_SKIP_DIRS
+
                     dirnames[:] = [
-                        d
-                        for d in dirnames
-                        if d
-                        not in {
-                            ".git",
-                            "__pycache__",
-                            ".tox",
-                            "dist",
-                            "build",
-                            ".cache",
-                        }
+                        d for d in dirnames if d not in PHANTOM_WALK_SKIP_DIRS
                     ]
             except PermissionError:
                 logger.debug("Permission denied walking %s", root)

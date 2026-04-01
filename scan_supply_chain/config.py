@@ -28,5 +28,9 @@ DISCOVERY_SKIP_DIRS = _COMMON_SKIP_DIRS
 # because .pth backdoors live there)
 IOC_WALK_SKIP_DIRS = _COMMON_SKIP_DIRS | {"node_modules"}
 
+# Phantom dep walks need to enter node_modules (npm) and site-packages (pypi)
+# but should skip common unproductive dirs
+PHANTOM_WALK_SKIP_DIRS = _COMMON_SKIP_DIRS
+
 # Phase 4 source scanner skips third-party code
 SOURCE_SCAN_SKIP_DIRS = _COMMON_SKIP_DIRS | {"site-packages", "node_modules"}

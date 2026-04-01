@@ -133,12 +133,9 @@ def _walk_site_packages(root: Path):
     """Walk looking for site-packages, then check contents."""
     import os
 
+    from .config import PHANTOM_WALK_SKIP_DIRS
+
     for dirpath, dirnames, filenames in os.walk(root):
         if Path(dirpath).name == "site-packages":
             yield dirpath, dirnames, filenames
-        # Prune non-productive subtrees
-        dirnames[:] = [
-            d
-            for d in dirnames
-            if d not in {"__pycache__", ".git", "node_modules", ".tox"}
-        ]
+        dirnames[:] = [d for d in dirnames if d not in PHANTOM_WALK_SKIP_DIRS]
