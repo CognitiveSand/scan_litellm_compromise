@@ -10,13 +10,14 @@ from pathlib import Path
 
 from scan_supply_chain.ioc_scanner import (
     _check_known_paths,
+    _ip_matches_output,
     _resolve_c2_ips,
     _scan_for_c2_connections,
     _scan_for_malicious_pods,
     _scan_walk_files,
 )
 from scan_supply_chain.models import ScanResults
-from tests.conftest import StubPolicy, make_litellm_threat
+from tests.conftest import StubPolicy, make_litellm_threat, make_axios_threat
 
 
 # ── _check_known_paths ────────────────────────────────────────────────
@@ -384,4 +385,87 @@ class TestScanForMaliciousPods:
         )
         results = ScanResults()
         _scan_for_malicious_pods(results, threat)
+        assert results.iocs == []
+
+
+# ── _ip_matches_output (pure function) ───────────────────────────────
+
+
+class TestIpMatchesOutput:
+    def test_bare_ip_matches_when_no_ports(self):
+        # @req FR-15
+        assert _ip_matches_output("1.2.3.4", [], "ESTAB 1.2.3.4:443") is True
+
+    def test_bare_ip_does_not_match_absent_ip(self):
+        # @req FR-15
+        assert _ip_matches_output("1.2.3.4", [], "ESTAB 5.6.7.8:443") is False
+
+    def test_port_match_when_ip_and_port_present(self):
+        # @req FR-15
+        output = "ESTAB 10.0.0.1:54321 142.11.206.73:8000"
+        assert _ip_matches_output("142.11.206.73", [8000], output) is True
+
+    def test_port_mismatch_when_ip_on_wrong_port(self):
+        # @req FR-15
+        output = "ESTAB 10.0.0.1:54321 142.11.206.73:443"
+        assert _ip_matches_output("142.11.206.73", [8000], output) is False
+
+    def test_any_port_matches(self):
+        # @req FR-15
+        output = "ESTAB 10.0.0.1:54321 142.11.206.73:9090"
+        assert _ip_matches_output("142.11.206.73", [8000, 9090], output) is True
+
+    def test_c2_with_ports_in_full_scan(self, monkeypatch, capsys):
+        # @req FR-15
+        threat = make_axios_threat()
+        known_ip = threat.c2.ips["sfrclak.com"][0]
+
+        stdout_bytes = f"ESTAB 10.0.0.1:54321 {known_ip}:8000\n".encode()
+        monkeypatch.setattr(
+            "scan_supply_chain.ioc_scanner.shutil.which",
+            lambda cmd: "/usr/bin/ss",
+        )
+        monkeypatch.setattr(
+            "scan_supply_chain.ioc_scanner.subprocess.run",
+            lambda *a, **kw: subprocess.CompletedProcess(
+                args=a[0],
+                returncode=0,
+                stdout=stdout_bytes,
+            ),
+        )
+
+        policy = StubPolicy()
+        policy.network_check_command = ["ss", "-tnp"]
+
+        results = ScanResults()
+        _scan_for_c2_connections(results, threat, policy)
+
+        assert len(results.iocs) >= 1
+        assert any("connection:" in ioc for ioc in results.iocs)
+
+    def test_c2_with_ports_rejects_wrong_port(self, monkeypatch, capsys):
+        # @req FR-15
+        threat = make_axios_threat()
+        known_ip = threat.c2.ips["sfrclak.com"][0]
+
+        stdout_bytes = f"ESTAB 10.0.0.1:54321 {known_ip}:443\n".encode()
+        monkeypatch.setattr(
+            "scan_supply_chain.ioc_scanner.shutil.which",
+            lambda cmd: "/usr/bin/ss",
+        )
+        monkeypatch.setattr(
+            "scan_supply_chain.ioc_scanner.subprocess.run",
+            lambda *a, **kw: subprocess.CompletedProcess(
+                args=a[0],
+                returncode=0,
+                stdout=stdout_bytes,
+            ),
+        )
+
+        policy = StubPolicy()
+        policy.network_check_command = ["ss", "-tnp"]
+
+        results = ScanResults()
+        _scan_for_c2_connections(results, threat, policy)
+
         assert results.iocs == []
