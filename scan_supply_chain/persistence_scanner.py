@@ -2,6 +2,7 @@
 
 Checks common persistence mechanisms that any supply chain attack
 might abuse, independent of the specific threat profile.
+Every checker filters by the target package name — no generic noise.
 """
 
 from __future__ import annotations
@@ -25,16 +26,37 @@ def scan_persistence(results: ScanResults, package: str) -> None:
 
     _check_crontab(results, package)
     _check_shell_rc(results, package)
-    _check_tmp_scripts(results)
+    _check_tmp_scripts(results, package)
 
     if sys.platform == "linux":
-        _check_systemd_user(results, package)
-        _check_xdg_autostart(results)
+        _check_config_dir(
+            results,
+            Path.home() / ".config" / "systemd" / "user",
+            "*.service",
+            "systemd user service",
+            package,
+        )
+        _check_config_dir(
+            results,
+            Path.home() / ".config" / "autostart",
+            "*.desktop",
+            "XDG autostart",
+            package,
+        )
     elif sys.platform == "darwin":
-        _check_launch_agents(results, package)
+        _check_config_dir(
+            results,
+            Path.home() / "Library" / "LaunchAgents",
+            "*.plist",
+            "LaunchAgent",
+            package,
+        )
 
     if len(results.findings) == count_before:
         print_clean("No suspicious persistence found")
+
+
+# ── Helpers ─────────────────────────────────────────────────────────────
 
 
 def _add_persistence(results: ScanResults, description: str, evidence: str) -> None:
@@ -48,6 +70,32 @@ def _add_persistence(results: ScanResults, description: str, evidence: str) -> N
             weight=2,
         )
     )
+
+
+def _check_config_dir(
+    results: ScanResults,
+    directory: Path,
+    glob_pattern: str,
+    label: str,
+    package: str,
+) -> None:
+    """Glob a config directory for files mentioning the package."""
+    if not directory.is_dir():
+        return
+    try:
+        for config_file in directory.glob(glob_pattern):
+            text = config_file.read_text(errors="ignore")
+            if package in text:
+                _add_persistence(
+                    results,
+                    f"{label}: {config_file.name}",
+                    str(config_file),
+                )
+    except (PermissionError, OSError):
+        logger.debug("Cannot read %s", directory)
+
+
+# ── Individual checkers ─────────────────────────────────────────────────
 
 
 def _check_crontab(results: ScanResults, package: str) -> None:
@@ -83,66 +131,62 @@ def _check_shell_rc(results: ScanResults, package: str) -> None:
             logger.debug("Cannot read %s", rc_path)
 
 
-def _check_tmp_scripts(results: ScanResults) -> None:
+def _check_tmp_scripts(results: ScanResults, package: str) -> None:
+    """Check /tmp for scripts that actually import the package."""
     tmp = Path("/tmp") if sys.platform != "win32" else None
     if tmp is None or not tmp.is_dir():
         return
     try:
         for f in tmp.iterdir():
-            if f.is_file() and f.suffix in (".py", ".sh", ".bash"):
-                _add_persistence(
-                    results,
-                    f"/tmp script: {f.name}",
-                    str(f),
-                )
+            if not f.is_file():
+                continue
+            if f.suffix == ".py":
+                _check_tmp_python_file(results, f, package)
+            elif f.suffix in (".sh", ".bash"):
+                _check_tmp_shell_file(results, f, package)
     except (PermissionError, OSError):
         logger.debug("Cannot read /tmp")
 
 
-def _check_systemd_user(results: ScanResults, package: str) -> None:
-    systemd_dir = Path.home() / ".config" / "systemd" / "user"
-    if not systemd_dir.is_dir():
-        return
+def _check_tmp_python_file(results: ScanResults, path: Path, package: str) -> None:
+    """Flag a /tmp .py file only if it actually imports the package."""
     try:
-        for service_file in systemd_dir.glob("*.service"):
-            text = service_file.read_text(errors="ignore")
-            if package in text:
-                _add_persistence(
-                    results,
-                    f"systemd user service: {service_file.name}",
-                    str(service_file),
-                )
+        text = path.read_text(errors="ignore")
     except (PermissionError, OSError):
-        logger.debug("Cannot read systemd user dir")
-
-
-def _check_xdg_autostart(results: ScanResults) -> None:
-    autostart = Path.home() / ".config" / "autostart"
-    if not autostart.is_dir():
         return
-    try:
-        for desktop_file in autostart.glob("*.desktop"):
-            _add_persistence(
-                results,
-                f"XDG autostart: {desktop_file.name}",
-                str(desktop_file),
-            )
-    except (PermissionError, OSError):
-        logger.debug("Cannot read autostart dir")
 
-
-def _check_launch_agents(results: ScanResults, package: str) -> None:
-    agents_dir = Path.home() / "Library" / "LaunchAgents"
-    if not agents_dir.is_dir():
+    if package not in text:
         return
+
+    from .ast_scanner import scan_python_imports
+
+    lines = text.splitlines()
+    ast_refs = scan_python_imports(text, lines, package, str(path))
+
+    if ast_refs is not None:
+        # AST parsed successfully — trust its result
+        if ast_refs:
+            _add_persistence(results, f"/tmp script: {path.name}", str(path))
+    else:
+        # SyntaxError fallback — check non-comment lines
+        if _has_active_reference(text, package):
+            _add_persistence(results, f"/tmp script: {path.name}", str(path))
+
+
+def _check_tmp_shell_file(results: ScanResults, path: Path, package: str) -> None:
+    """Flag a /tmp shell script only if it references the package."""
     try:
-        for plist in agents_dir.glob("*.plist"):
-            text = plist.read_text(errors="ignore")
-            if package in text:
-                _add_persistence(
-                    results,
-                    f"LaunchAgent: {plist.name}",
-                    str(plist),
-                )
+        text = path.read_text(errors="ignore")
     except (PermissionError, OSError):
-        logger.debug("Cannot read LaunchAgents")
+        return
+
+    if _has_active_reference(text, package):
+        _add_persistence(results, f"/tmp script: {path.name}", str(path))
+
+
+def _has_active_reference(text: str, package: str) -> bool:
+    """Check if any non-comment line contains the package name."""
+    return any(
+        package in line and not line.strip().startswith("#")
+        for line in text.splitlines()
+    )
