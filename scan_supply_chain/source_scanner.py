@@ -60,6 +60,19 @@ def _scan_file_lines(
     if package not in text:
         return
 
+    # For Python files, use AST for precise import detection.
+    # Falls back to regex on SyntaxError.
+    if is_source and file_path.suffix == ".py":
+        from .ast_scanner import scan_python_imports
+
+        lines = text.splitlines()
+        ast_refs = scan_python_imports(text, lines, package, str(file_path))
+        if ast_refs is not None:
+            results.source_refs.extend(ast_refs)
+            return
+
+    # Regex path: used for non-Python source files (.js, .ts, etc.)
+    # and as fallback when AST parsing fails.
     for line_number, line in enumerate(text.splitlines(), 1):
         if package not in line:
             continue
