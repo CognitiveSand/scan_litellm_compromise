@@ -1,7 +1,11 @@
 """Data structures for scan results."""
 
+from __future__ import annotations
+
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Generator
 
 
 @dataclass(frozen=True)
@@ -112,3 +116,16 @@ class ScanResults:
     @property
     def config_files(self) -> set[str]:
         return {ref.file_path for ref in self.config_refs}
+
+
+@contextmanager
+def track_findings(
+    results: ScanResults, clean_message: str
+) -> Generator[None, None, None]:
+    """Context manager: print clean_message if no findings were added inside the block."""
+    before = len(results.findings)
+    yield
+    if len(results.findings) == before:
+        from .formatting import print_clean
+
+        print_clean(clean_message)

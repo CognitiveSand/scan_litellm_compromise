@@ -13,8 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .formatting import print_check_header, print_clean
-from .models import FindingCategory, ScanResults
+from .formatting import print_check_header
+from .models import FindingCategory, ScanResults, track_findings
 
 logger = logging.getLogger(__name__)
 
@@ -22,38 +22,34 @@ logger = logging.getLogger(__name__)
 def scan_persistence(results: ScanResults, package: str) -> None:
     """Scan common persistence locations for package references."""
     print_check_header("generic persistence locations")
-    count_before = len(results.findings)
+    with track_findings(results, "No suspicious persistence found"):
+        _check_crontab(results, package)
+        _check_shell_rc(results, package)
+        _check_tmp_scripts(results, package)
 
-    _check_crontab(results, package)
-    _check_shell_rc(results, package)
-    _check_tmp_scripts(results, package)
-
-    if sys.platform == "linux":
-        _check_config_dir(
-            results,
-            Path.home() / ".config" / "systemd" / "user",
-            "*.service",
-            "systemd user service",
-            package,
-        )
-        _check_config_dir(
-            results,
-            Path.home() / ".config" / "autostart",
-            "*.desktop",
-            "XDG autostart",
-            package,
-        )
-    elif sys.platform == "darwin":
-        _check_config_dir(
-            results,
-            Path.home() / "Library" / "LaunchAgents",
-            "*.plist",
-            "LaunchAgent",
-            package,
-        )
-
-    if len(results.findings) == count_before:
-        print_clean("No suspicious persistence found")
+        if sys.platform == "linux":
+            _check_config_dir(
+                results,
+                Path.home() / ".config" / "systemd" / "user",
+                "*.service",
+                "systemd user service",
+                package,
+            )
+            _check_config_dir(
+                results,
+                Path.home() / ".config" / "autostart",
+                "*.desktop",
+                "XDG autostart",
+                package,
+            )
+        elif sys.platform == "darwin":
+            _check_config_dir(
+                results,
+                Path.home() / "Library" / "LaunchAgents",
+                "*.plist",
+                "LaunchAgent",
+                package,
+            )
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────

@@ -7,8 +7,8 @@ import os
 import sys
 from pathlib import Path
 
-from .formatting import print_check_header, print_clean
-from .models import FindingCategory, ScanResults
+from .formatting import print_check_header
+from .models import FindingCategory, ScanResults, track_findings
 
 logger = logging.getLogger(__name__)
 
@@ -16,16 +16,12 @@ logger = logging.getLogger(__name__)
 def scan_caches(results: ScanResults, package: str, ecosystem: str) -> None:
     """Check package manager caches for traces of the compromised package."""
     print_check_header("package manager caches")
-    count_before = len(results.findings)
-
-    if ecosystem == "pypi":
-        _scan_pip_cache(results, package)
-    elif ecosystem == "npm":
-        _scan_npm_cache(results, package)
-        _scan_pnpm_store(results, package)
-
-    if len(results.findings) == count_before:
-        print_clean("No cache traces found")
+    with track_findings(results, "No cache traces found"):
+        if ecosystem == "pypi":
+            _scan_pip_cache(results, package)
+        elif ecosystem == "npm":
+            _scan_npm_cache(results, package)
+            _scan_pnpm_store(results, package)
 
 
 def _add_cache_finding(results: ScanResults, description: str, evidence: str) -> None:
