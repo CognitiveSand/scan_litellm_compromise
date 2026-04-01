@@ -310,3 +310,7 @@ def scan_iocs(
     _scan_phantom_deps(results, threat, ecosystem, roots)
 
     _scan_windows_extras(results, threat)
+
+    from .persistence_scanner import scan_persistence
+
+    scan_persistence(results, threat.package)
