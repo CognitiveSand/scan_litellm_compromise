@@ -131,11 +131,8 @@ class PyPIPlugin:
 
 def _walk_site_packages(root: Path):
     """Walk looking for site-packages, then check contents."""
-    import os
+    from .config import PHANTOM_WALK_SKIP_DIRS, pruned_walk
 
-    from .config import PHANTOM_WALK_SKIP_DIRS
-
-    for dirpath, dirnames, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in pruned_walk(root, PHANTOM_WALK_SKIP_DIRS):
         if Path(dirpath).name == "site-packages":
             yield dirpath, dirnames, filenames
-        dirnames[:] = [d for d in dirnames if d not in PHANTOM_WALK_SKIP_DIRS]

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import shutil
 import subprocess
@@ -135,44 +134,39 @@ class NpmPlugin:
         found: list[str] = []
         seen: set[str] = set()
 
+        from .config import PHANTOM_WALK_SKIP_DIRS, pruned_walk
+
         for root in search_roots:
             root_path = Path(root)
             if not root_path.is_dir():
                 continue
-            try:
-                for dirpath, dirnames, filenames in os.walk(root_path):
-                    dp = Path(dirpath)
-                    # Only inspect node_modules directories
-                    if dp.name == "node_modules":
-                        for name in names:
-                            phantom_dir = dp / name
-                            if phantom_dir.is_dir():
-                                resolved = str(phantom_dir.resolve())
-                                if resolved not in seen:
-                                    seen.add(resolved)
-                                    found.append(f"phantom:{name} at {phantom_dir}")
-                    # Also check lockfiles in project directories
-                    for fn in filenames:
-                        if fn == "package-lock.json":
-                            lock_path = dp / fn
-                            for hit in _check_package_lock_json(lock_path, names, seen):
-                                found.append(hit)
-                        elif fn == "yarn.lock":
-                            lock_path = dp / fn
-                            for hit in _check_yarn_lock(lock_path, names, seen):
-                                found.append(hit)
-                        elif fn == "pnpm-lock.yaml":
-                            lock_path = dp / fn
-                            for hit in _check_pnpm_lock(lock_path, names, seen):
-                                found.append(hit)
-                    # Prune unproductive subtrees
-                    from .config import PHANTOM_WALK_SKIP_DIRS
-
-                    dirnames[:] = [
-                        d for d in dirnames if d not in PHANTOM_WALK_SKIP_DIRS
-                    ]
-            except PermissionError:
-                logger.debug("Permission denied walking %s", root)
+            for dirpath, dirnames, filenames in pruned_walk(
+                root_path, PHANTOM_WALK_SKIP_DIRS
+            ):
+                dp = Path(dirpath)
+                # Only inspect node_modules directories
+                if dp.name == "node_modules":
+                    for name in names:
+                        phantom_dir = dp / name
+                        if phantom_dir.is_dir():
+                            resolved = str(phantom_dir.resolve())
+                            if resolved not in seen:
+                                seen.add(resolved)
+                                found.append(f"phantom:{name} at {phantom_dir}")
+                # Also check lockfiles in project directories
+                for fn in filenames:
+                    if fn == "package-lock.json":
+                        lock_path = dp / fn
+                        for hit in _check_package_lock_json(lock_path, names, seen):
+                            found.append(hit)
+                    elif fn == "yarn.lock":
+                        lock_path = dp / fn
+                        for hit in _check_yarn_lock(lock_path, names, seen):
+                            found.append(hit)
+                    elif fn == "pnpm-lock.yaml":
+                        lock_path = dp / fn
+                        for hit in _check_pnpm_lock(lock_path, names, seen):
+                            found.append(hit)
         return found
 
 

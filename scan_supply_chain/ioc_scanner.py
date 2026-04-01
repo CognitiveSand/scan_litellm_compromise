@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
 
-from .config import IOC_WALK_SKIP_DIRS
+from .config import IOC_WALK_SKIP_DIRS, pruned_walk
 from .formatting import (
     BOLD,
     RED,
@@ -79,29 +79,23 @@ def _scan_walk_files(
             root_path = Path(root)
             if not root_path.is_dir():
                 continue
-            try:
-                for dirpath, dirnames, filenames in os.walk(root_path):
-                    dirnames[:] = [d for d in dirnames if d not in IOC_WALK_SKIP_DIRS]
-                    for fn in filenames:
-                        if fn not in target_names:
-                            continue
-                        file_path = Path(dirpath) / fn
-                        # If hashes are specified, verify
-                        if known_hashes:
-                            try:
-                                digest = hashlib.sha256(
-                                    file_path.read_bytes()
-                                ).hexdigest()
-                                if digest not in known_hashes:
-                                    continue
-                            except (PermissionError, OSError):
-                                # Can't read — still report as suspicious
-                                pass
-                        print_ioc_found(str(file_path))
-                        results.iocs.append(str(file_path))
-                        found = True
-            except PermissionError:
-                logger.debug("Permission denied walking %s", root)
+            for dirpath, _, filenames in pruned_walk(root_path, IOC_WALK_SKIP_DIRS):
+                for fn in filenames:
+                    if fn not in target_names:
+                        continue
+                    file_path = Path(dirpath) / fn
+                    # If hashes are specified, verify
+                    if known_hashes:
+                        try:
+                            digest = hashlib.sha256(file_path.read_bytes()).hexdigest()
+                            if digest not in known_hashes:
+                                continue
+                        except (PermissionError, OSError):
+                            # Can't read — still report as suspicious
+                            pass
+                    print_ioc_found(str(file_path))
+                    results.iocs.append(str(file_path))
+                    found = True
         if not found:
             print_clean()
 

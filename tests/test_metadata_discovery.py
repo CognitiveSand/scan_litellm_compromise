@@ -72,7 +72,7 @@ class TestWalkForMetadata:
         def walk_that_raises(path, **kwargs):
             raise PermissionError("denied")
 
-        monkeypatch.setattr("scan_supply_chain.discovery.os.walk", walk_that_raises)
+        monkeypatch.setattr("scan_supply_chain.config.os.walk", walk_that_raises)
 
         pattern = PyPIPlugin().metadata_dir_pattern("litellm")
         result = _walk_for_metadata(tmp_path, pattern, "litellm")

@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-import logging
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .config import DISCOVERY_SKIP_DIRS
+from .config import DISCOVERY_SKIP_DIRS, pruned_walk
 
 if TYPE_CHECKING:
     from .ecosystem_base import EcosystemPlugin
-
-logger = logging.getLogger(__name__)
 
 
 def _walk_for_metadata(
@@ -22,14 +18,10 @@ def _walk_for_metadata(
 ) -> list[Path]:
     """Walk a directory tree looking for package metadata directories."""
     found = []
-    try:
-        for dirpath, dirnames, _ in os.walk(root):
-            dirnames[:] = [d for d in dirnames if d not in DISCOVERY_SKIP_DIRS]
-            for dirname in dirnames:
-                if metadata_pattern.match(dirname):
-                    found.append(Path(dirpath) / dirname)
-    except PermissionError:
-        logger.debug("Permission denied walking %s", root)
+    for dirpath, dirnames, _ in pruned_walk(root, DISCOVERY_SKIP_DIRS):
+        for dirname in dirnames:
+            if metadata_pattern.match(dirname):
+                found.append(Path(dirpath) / dirname)
     return found
 
 
@@ -39,16 +31,12 @@ def _walk_for_node_modules(
 ) -> list[Path]:
     """Walk a directory tree looking for node_modules/{package}/."""
     found = []
-    try:
-        for dirpath, dirnames, _ in os.walk(root):
-            dp = Path(dirpath)
-            if dp.name == "node_modules":
-                pkg_dir = dp / package
-                if pkg_dir.is_dir() and (pkg_dir / "package.json").is_file():
-                    found.append(pkg_dir)
-            dirnames[:] = [d for d in dirnames if d not in DISCOVERY_SKIP_DIRS]
-    except PermissionError:
-        logger.debug("Permission denied walking %s", root)
+    for dirpath, dirnames, _ in pruned_walk(root, DISCOVERY_SKIP_DIRS):
+        dp = Path(dirpath)
+        if dp.name == "node_modules":
+            pkg_dir = dp / package
+            if pkg_dir.is_dir() and (pkg_dir / "package.json").is_file():
+                found.append(pkg_dir)
     return found
 
 

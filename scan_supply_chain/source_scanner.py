@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .config import SOURCE_SCAN_SKIP_DIRS
+from .config import SOURCE_SCAN_SKIP_DIRS, pruned_walk
 from .models import ConfigReference, ScanResults, SourceReference
 
 if TYPE_CHECKING:
@@ -131,45 +130,40 @@ def scan_source_and_configs(
         root_path = Path(root)
         if not root_path.is_dir():
             continue
-        try:
-            for dirpath, dirnames, filenames in os.walk(root_path):
-                dirnames[:] = [d for d in dirnames if d not in SOURCE_SCAN_SKIP_DIRS]
-                dir_path = Path(dirpath)
+        for dirpath, dirnames, filenames in pruned_walk(
+            root_path, SOURCE_SCAN_SKIP_DIRS
+        ):
+            dir_path = Path(dirpath)
 
-                for filename in filenames:
-                    file_path = dir_path / filename
-                    extension = file_path.suffix.lower()
-                    is_source = extension in source_exts
-                    is_config = _is_config_file(
-                        filename,
-                        extension,
-                        config_names,
-                        config_exts,
-                        cfg_fn_pattern,
-                    )
+            for filename in filenames:
+                file_path = dir_path / filename
+                extension = file_path.suffix.lower()
+                is_source = extension in source_exts
+                is_config = _is_config_file(
+                    filename,
+                    extension,
+                    config_names,
+                    config_exts,
+                    cfg_fn_pattern,
+                )
 
-                    if not is_source and not is_config:
-                        continue
+                if not is_source and not is_config:
+                    continue
 
-                    # Use string path for dedup — roots are pre-deduped so
-                    # overlapping walks don't occur. Avoids a realpath()
-                    # syscall per file (~50k calls on large codebases).
-                    file_str = str(file_path)
-                    if file_str in seen_files or file_str.startswith(scanner_dir):
-                        continue
-                    seen_files.add(file_str)
+                file_str = str(file_path)
+                if file_str in seen_files or file_str.startswith(scanner_dir):
+                    continue
+                seen_files.add(file_str)
 
-                    files_scanned += 1
-                    _scan_file_lines(
-                        file_path,
-                        is_source,
-                        results,
-                        threat.package,
-                        import_pats,
-                        dep_pats,
-                        pinned_pat,
-                    )
-        except PermissionError:
-            logger.debug("Permission denied walking %s", root)
+                files_scanned += 1
+                _scan_file_lines(
+                    file_path,
+                    is_source,
+                    results,
+                    threat.package,
+                    import_pats,
+                    dep_pats,
+                    pinned_pat,
+                )
 
     return files_scanned
