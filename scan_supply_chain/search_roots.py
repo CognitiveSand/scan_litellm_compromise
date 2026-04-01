@@ -15,11 +15,33 @@ if TYPE_CHECKING:
     from .platform_policy import PlatformPolicy
 
 
+def _deduplicate_roots(roots: list[str]) -> list[str]:
+    """Remove roots that are subdirectories of other roots.
+
+    Given ["/home", "/home/me", "/opt"], returns ["/home", "/opt"]
+    because /home/me is already covered by walking /home.
+    """
+    resolved = [(r, Path(r).resolve()) for r in roots if Path(r).is_dir()]
+    resolved.sort(key=lambda x: len(x[1].parts))
+    kept: list[tuple[str, Path]] = []
+    for original, resolved_path in resolved:
+        if any(
+            resolved_path == kept_path or kept_path in resolved_path.parents
+            for _, kept_path in kept
+        ):
+            continue
+        kept.append((original, resolved_path))
+    return [original for original, _ in kept]
+
+
 def build_search_roots(
     policy: PlatformPolicy,
     ecosystem: EcosystemPlugin,
 ) -> list[str]:
-    """Combine platform roots, conda/pipx dirs, and ecosystem extras."""
+    """Combine platform roots, conda/pipx dirs, and ecosystem extras.
+
+    Returns a deduplicated list — no root is a subdirectory of another.
+    """
     roots = list(policy.search_roots)
     home = Path.home()
 
@@ -42,4 +64,4 @@ def build_search_roots(
     if home_str not in roots:
         roots.append(home_str)
 
-    return roots
+    return _deduplicate_roots(roots)

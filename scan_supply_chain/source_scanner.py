@@ -18,29 +18,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# ── Root deduplication ───────────────────────────────────────────────────
-
-
-def _deduplicate_roots(roots: list[str]) -> list[str]:
-    """Remove roots that are subdirectories of other roots."""
-    resolved = [(r, Path(r).resolve()) for r in roots if Path(r).is_dir()]
-    resolved.sort(key=lambda x: len(x[1].parts))
-    kept: list[tuple[str, Path]] = []
-    for original, resolved_path in resolved:
-        if any(
-            resolved_path == kept_path or kept_path in resolved_path.parents
-            for _, kept_path in kept
-        ):
-            continue
-        kept.append((original, resolved_path))
-    return [original for original, _ in kept]
-
-
-def _deduplicate_scan_roots(roots: list[str]) -> list[str]:
-    """Deduplicate roots, removing subdirectory overlaps."""
-    return _deduplicate_roots(roots)
-
-
 # ── File classification ──────────────────────────────────────────────────
 
 
@@ -120,7 +97,7 @@ def scan_source_and_configs(
 
     Returns the number of files scanned.
     """
-    scan_roots = _deduplicate_scan_roots(roots)
+    scan_roots = roots  # already deduplicated by build_search_roots()
     scanner_dir = str(Path(__file__).resolve().parent)
     seen_files: set[str] = set()
     files_scanned = 0
