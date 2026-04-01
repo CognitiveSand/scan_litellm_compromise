@@ -87,11 +87,8 @@ class TestScanWalkFiles:
                 )
             ],
         )
-        policy = StubPolicy()
-        policy.search_roots = [str(tmp_path)]
-
         results = ScanResults()
-        _scan_walk_files(results, threat, policy)
+        _scan_walk_files(results, threat, [str(tmp_path)])
 
         assert len(results.iocs) == 1
         assert "litellm_init.pth" in results.iocs[0]
@@ -100,11 +97,9 @@ class TestScanWalkFiles:
         (tmp_path / "lib" / "site-packages").mkdir(parents=True)
 
         threat = make_litellm_threat()
-        policy = StubPolicy()
-        policy.search_roots = [str(tmp_path)]
 
         results = ScanResults()
-        _scan_walk_files(results, threat, policy)
+        _scan_walk_files(results, threat, [str(tmp_path)])
 
         assert results.iocs == []
         captured = capsys.readouterr().out
@@ -112,15 +107,13 @@ class TestScanWalkFiles:
 
     def test_skips_nonexistent_search_roots(self, capsys):
         threat = make_litellm_threat()
-        policy = StubPolicy()
-        policy.search_roots = ["/nonexistent/path/that/does/not/exist"]
 
         results = ScanResults()
-        _scan_walk_files(results, threat, policy)
+        _scan_walk_files(results, threat, ["/nonexistent/path/that/does/not/exist"])
 
         assert results.iocs == []
 
-    def test_respects_scan_path(self, tmp_path, capsys):
+    def test_respects_explicit_roots(self, tmp_path, capsys):
         (tmp_path / "litellm_init.pth").write_text("import os")
 
         from scan_litellm_compromise.threat_profile import WalkFileIOC
@@ -134,11 +127,9 @@ class TestScanWalkFiles:
                 )
             ],
         )
-        policy = StubPolicy()
-        policy.search_roots = ["/should/not/be/used"]
 
         results = ScanResults()
-        _scan_walk_files(results, threat, policy, scan_path=str(tmp_path))
+        _scan_walk_files(results, threat, [str(tmp_path)])
 
         assert len(results.iocs) == 1
 

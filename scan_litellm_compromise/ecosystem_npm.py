@@ -84,9 +84,11 @@ class NpmPlugin:
 
     def pinned_version_pattern(self, package: str) -> re.Pattern:
         escaped = re.escape(package)
-        # Matches "axios": "1.14.1" (exact version, no ^ or ~)
+        # Matches both:
+        #   "axios": "1.14.1"  (package.json dependency)
+        #   "version": "1.14.1"  (package-lock.json resolved entry)
         return re.compile(
-            rf"""["']{escaped}["']\s*:\s*["']([0-9][0-9a-zA-Z.*-]*)["']"""
+            rf"""(?:["']{escaped}["']|["']version["'])\s*:\s*["']([0-9][0-9a-zA-Z.*-]*)["']"""
         )
 
     def config_filename_pattern(self) -> re.Pattern | None:
@@ -151,20 +153,14 @@ class NpmPlugin:
                                     found.append(f"phantom:{name} at {phantom_dir}")
                     # Also check lockfiles in project directories
                     for fn in filenames:
-                        if fn in ("package-lock.json", "yarn.lock"):
+                        if fn == "package-lock.json":
                             lock_path = dp / fn
-                            try:
-                                text = lock_path.read_text(errors="ignore")
-                                for name in names:
-                                    if name in text:
-                                        key = f"{lock_path}:{name}"
-                                        if key not in seen:
-                                            seen.add(key)
-                                            found.append(
-                                                f"phantom:{name} in {lock_path}"
-                                            )
-                            except (PermissionError, OSError):
-                                pass
+                            for hit in _check_package_lock_json(lock_path, names, seen):
+                                found.append(hit)
+                        elif fn == "yarn.lock":
+                            lock_path = dp / fn
+                            for hit in _check_yarn_lock(lock_path, names, seen):
+                                found.append(hit)
                     # Prune unproductive subtrees
                     dirnames[:] = [
                         d
@@ -182,3 +178,73 @@ class NpmPlugin:
             except PermissionError:
                 logger.debug("Permission denied walking %s", root)
         return found
+
+
+def _check_package_lock_json(
+    lock_path: Path,
+    names: list[str],
+    seen: set[str],
+) -> list[str]:
+    """Structurally parse package-lock.json for phantom dependencies."""
+    found: list[str] = []
+    try:
+        data = json.loads(lock_path.read_text(errors="ignore"))
+    except (json.JSONDecodeError, PermissionError, OSError):
+        return found
+
+    name_set = set(names)
+
+    # lockfileVersion 2/3: "packages" has keys like "node_modules/plain-crypto-js"
+    packages = data.get("packages", {})
+    for pkg_key in packages:
+        pkg_name = (
+            pkg_key.rsplit("node_modules/", 1)[-1] if "node_modules/" in pkg_key else ""
+        )
+        if pkg_name in name_set:
+            key = f"{lock_path}:{pkg_name}"
+            if key not in seen:
+                seen.add(key)
+                version = packages[pkg_key].get("version", "?")
+                found.append(f"phantom:{pkg_name}@{version} in {lock_path}")
+
+    # lockfileVersion 1: "dependencies" at top level
+    deps = data.get("dependencies", {})
+    for dep_name, dep_info in deps.items():
+        if dep_name in name_set:
+            key = f"{lock_path}:{dep_name}"
+            if key not in seen:
+                seen.add(key)
+                version = (
+                    dep_info.get("version", "?") if isinstance(dep_info, dict) else "?"
+                )
+                found.append(f"phantom:{dep_name}@{version} in {lock_path}")
+
+    return found
+
+
+def _check_yarn_lock(
+    lock_path: Path,
+    names: list[str],
+    seen: set[str],
+) -> list[str]:
+    """Check yarn.lock for phantom dependencies by line matching.
+
+    yarn.lock is not JSON — it uses a custom format where each entry
+    starts with the package name at column 0. We match lines like:
+      plain-crypto-js@^4.2.1:
+    """
+    found: list[str] = []
+    try:
+        text = lock_path.read_text(errors="ignore")
+    except (PermissionError, OSError):
+        return found
+
+    for name in names:
+        # Match "name@" at start of line (yarn.lock entry header)
+        if f"\n{name}@" in text or text.startswith(f"{name}@"):
+            key = f"{lock_path}:{name}"
+            if key not in seen:
+                seen.add(key)
+                found.append(f"phantom:{name} in {lock_path}")
+
+    return found

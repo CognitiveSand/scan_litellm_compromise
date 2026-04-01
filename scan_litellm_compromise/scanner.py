@@ -8,6 +8,7 @@ from pathlib import Path
 from . import __version__
 from .discovery import find_package_metadata
 from .ecosystem_base import get_ecosystem
+from .search_roots import build_search_roots
 from .formatting import (
     BOLD,
     CYAN,
@@ -118,7 +119,7 @@ def _resolve_threats(args: argparse.Namespace) -> list[ThreatProfile]:
 def _scan_single_threat(
     threat: ThreatProfile,
     policy,
-    scan_path: str | None,
+    roots: list[str],
     resolve_c2: bool,
 ) -> ScanResults:
     """Run the full 5-phase pipeline for one threat profile."""
@@ -133,12 +134,7 @@ def _scan_single_threat(
 
     # Phase 1: Discover installations
     print_phase_header(1, f"Discovering {threat.package} installations...")
-    metadata_dirs = find_package_metadata(
-        policy,
-        ecosystem,
-        threat.package,
-        scan_path=scan_path,
-    )
+    metadata_dirs = find_package_metadata(roots, ecosystem, threat.package)
     print(
         f"  Found {BOLD}{len(metadata_dirs)}{RESET} "
         f"{threat.package} metadata directories"
@@ -154,27 +150,14 @@ def _scan_single_threat(
 
     # Phase 3: IOC artifact scan
     print_phase_header(3, "Scanning for IOC artifacts...")
-    scan_iocs(
-        results,
-        threat,
-        ecosystem,
-        policy,
-        resolve_c2=resolve_c2,
-        scan_path=scan_path,
-    )
+    scan_iocs(results, threat, ecosystem, policy, roots, resolve_c2=resolve_c2)
 
     # Phase 4: Source & config scan
     print_phase_header(
         4,
         f"Scanning source files for {threat.package} usage...",
     )
-    files_scanned = scan_source_and_configs(
-        results,
-        threat,
-        ecosystem,
-        policy,
-        scan_path=scan_path,
-    )
+    files_scanned = scan_source_and_configs(results, threat, ecosystem, roots)
     print(f"  Files scanned: {BOLD}{files_scanned}{RESET}\n")
     print_source_refs(results.source_refs, threat.package)
     print_config_refs(
@@ -196,6 +179,21 @@ def main():
 
     if args.list_threats:
         _do_list_threats()
+
+    if args.scan_path:
+        scan_dir = Path(args.scan_path)
+        if not scan_dir.exists():
+            print(
+                f"Error: --scan-path does not exist: {args.scan_path}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        if not scan_dir.is_dir():
+            print(
+                f"Error: --scan-path is not a directory: {args.scan_path}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
 
     threats = _resolve_threats(args)
     if not threats:
@@ -223,10 +221,15 @@ def main():
     # Run pipeline for each threat
     all_results: list[tuple[ThreatProfile, ScanResults]] = []
     for threat in threats:
+        ecosystem = get_ecosystem(threat.ecosystem)
+        if args.scan_path:
+            roots = [args.scan_path]
+        else:
+            roots = build_search_roots(policy, ecosystem)
         results = _scan_single_threat(
             threat,
             policy,
-            args.scan_path,
+            roots,
             args.resolve_c2,
         )
         all_results.append((threat, results))

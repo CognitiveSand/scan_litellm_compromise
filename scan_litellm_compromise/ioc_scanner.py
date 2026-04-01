@@ -65,8 +65,7 @@ def _check_known_paths(
 def _scan_walk_files(
     results: ScanResults,
     threat: ThreatProfile,
-    policy: PlatformPolicy,
-    scan_path: str | None = None,
+    roots: list[str],
 ) -> None:
     """Walk filesystem looking for IOC files by name (and optionally hash)."""
     for walk_ioc in threat.walk_files:
@@ -75,7 +74,6 @@ def _scan_walk_files(
         target_names = set(walk_ioc.filenames)
         known_hashes = set(walk_ioc.sha256)
 
-        roots = [scan_path] if scan_path else policy.search_roots
         for root in roots:
             root_path = Path(root)
             if not root_path.is_dir():
@@ -131,6 +129,13 @@ def _resolve_c2_ips(threat: ThreatProfile, resolve_dns: bool) -> dict[str, list[
     return result
 
 
+def _ip_matches_output(ip: str, ports: list[int], output: str) -> bool:
+    """Check if an IP (optionally with specific ports) appears in socket output."""
+    if not ports:
+        return ip in output
+    return any(f"{ip}:{port}" in output for port in ports)
+
+
 def _scan_for_c2_connections(
     results: ScanResults,
     threat: ThreatProfile,
@@ -156,6 +161,7 @@ def _scan_for_c2_connections(
 
     found = False
     domain_ips = _resolve_c2_ips(threat, resolve_c2)
+    c2_ports = threat.c2.ports
     try:
         socket_output = subprocess.run(
             command, capture_output=True, timeout=5
@@ -163,8 +169,12 @@ def _scan_for_c2_connections(
 
         for domain, ips in domain_ips.items():
             for ip in ips:
-                if ip in socket_output:
-                    print(f"  {RED}{BOLD}! ACTIVE CONNECTION to {domain} ({ip}){RESET}")
+                if _ip_matches_output(ip, c2_ports, socket_output):
+                    port_info = f" port {c2_ports}" if c2_ports else ""
+                    print(
+                        f"  {RED}{BOLD}! ACTIVE CONNECTION "
+                        f"to {domain} ({ip}{port_info}){RESET}"
+                    )
                     results.iocs.append(f"connection:{domain}:{ip}")
                     found = True
                     break  # one match per domain is enough
@@ -216,14 +226,12 @@ def _scan_phantom_deps(
     results: ScanResults,
     threat: ThreatProfile,
     ecosystem: EcosystemPlugin,
-    policy: PlatformPolicy,
-    scan_path: str | None = None,
+    roots: list[str],
 ) -> None:
     """Check for phantom dependencies that should not exist."""
     if not threat.phantom_deps:
         return
 
-    roots = [scan_path] if scan_path else policy.search_roots
     print_check_header("phantom dependencies (should not exist)")
     found_iocs = ecosystem.find_phantom_deps(
         threat.phantom_deps,
@@ -265,12 +273,12 @@ def scan_iocs(
     threat: ThreatProfile,
     ecosystem: EcosystemPlugin,
     policy: PlatformPolicy,
+    roots: list[str],
     resolve_c2: bool = False,
-    scan_path: str | None = None,
 ) -> None:
     """Run all IOC artifact scans for a single threat profile."""
     if threat.walk_files:
-        _scan_walk_files(results, threat, policy, scan_path=scan_path)
+        _scan_walk_files(results, threat, roots)
         print()
 
     if threat.known_paths:
@@ -281,12 +289,6 @@ def scan_iocs(
 
     _scan_for_malicious_pods(results, threat)
 
-    _scan_phantom_deps(
-        results,
-        threat,
-        ecosystem,
-        policy,
-        scan_path=scan_path,
-    )
+    _scan_phantom_deps(results, threat, ecosystem, roots)
 
     _scan_windows_extras(results, threat)

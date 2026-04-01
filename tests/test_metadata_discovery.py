@@ -11,8 +11,6 @@ from scan_litellm_compromise.discovery import (
 )
 from scan_litellm_compromise.ecosystem_pypi import PyPIPlugin
 
-from tests.conftest import StubPolicy
-
 
 # ── _walk_for_metadata (PyPI filesystem) ──────────────────────────────
 
@@ -144,52 +142,28 @@ class TestDeduplicateByRealpath:
 
 
 class TestFindPackageMetadata:
-    def test_finds_pypi_package_from_policy_roots(self, tmp_path, monkeypatch):
+    def test_finds_pypi_package_from_roots(self, tmp_path):
         site_pkg = tmp_path / "lib" / "site-packages"
         (site_pkg / "litellm-1.82.7.dist-info").mkdir(parents=True)
 
-        policy = StubPolicy()
-        policy.search_roots = [str(tmp_path)]
         ecosystem = PyPIPlugin()
-
-        monkeypatch.setattr(
-            "scan_litellm_compromise.discovery.Path.home", lambda: tmp_path / "fakehome"
-        )
-        (tmp_path / "fakehome").mkdir()
-
-        result = find_package_metadata(policy, ecosystem, "litellm")
+        result = find_package_metadata([str(tmp_path)], ecosystem, "litellm")
 
         assert len(result) == 1
 
-    def test_returns_empty_when_no_package_installed(self, tmp_path, monkeypatch):
+    def test_returns_empty_when_no_package_installed(self, tmp_path):
         (tmp_path / "lib" / "site-packages" / "flask-3.0.dist-info").mkdir(parents=True)
 
-        policy = StubPolicy()
-        policy.search_roots = [str(tmp_path)]
         ecosystem = PyPIPlugin()
-
-        monkeypatch.setattr(
-            "scan_litellm_compromise.discovery.Path.home", lambda: tmp_path / "fakehome"
-        )
-        (tmp_path / "fakehome").mkdir()
-
-        result = find_package_metadata(policy, ecosystem, "litellm")
+        result = find_package_metadata([str(tmp_path)], ecosystem, "litellm")
 
         assert result == []
 
-    def test_uses_scan_path_when_provided(self, tmp_path):
+    def test_uses_explicit_roots(self, tmp_path):
         target = tmp_path / "myproject"
         (target / "venv" / "lib" / "litellm-1.82.7.dist-info").mkdir(parents=True)
 
-        policy = StubPolicy()
-        policy.search_roots = ["/should/not/be/used"]
         ecosystem = PyPIPlugin()
-
-        result = find_package_metadata(
-            policy,
-            ecosystem,
-            "litellm",
-            scan_path=str(target),
-        )
+        result = find_package_metadata([str(target)], ecosystem, "litellm")
 
         assert len(result) == 1

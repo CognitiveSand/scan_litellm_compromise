@@ -13,7 +13,6 @@ from .models import ConfigReference, ScanResults, SourceReference
 
 if TYPE_CHECKING:
     from .ecosystem_base import EcosystemPlugin
-    from .platform_policy import PlatformPolicy
     from .threat_profile import ThreatProfile
 
 logger = logging.getLogger(__name__)
@@ -37,9 +36,9 @@ def _deduplicate_roots(roots: list[str]) -> list[str]:
     return [original for original, _ in kept]
 
 
-def _build_scan_roots(policy: PlatformPolicy) -> list[str]:
-    """Build deduplicated list of directories to scan."""
-    return _deduplicate_roots(policy.search_roots + [str(Path.home())])
+def _deduplicate_scan_roots(roots: list[str]) -> list[str]:
+    """Deduplicate roots, removing subdirectory overlaps."""
+    return _deduplicate_roots(roots)
 
 
 # ── File classification ──────────────────────────────────────────────────
@@ -115,17 +114,13 @@ def scan_source_and_configs(
     results: ScanResults,
     threat: ThreatProfile,
     ecosystem: EcosystemPlugin,
-    policy: PlatformPolicy,
-    scan_path: str | None = None,
+    roots: list[str],
 ) -> int:
     """Scan source and config files for package usage.
 
     Returns the number of files scanned.
     """
-    if scan_path is not None:
-        scan_roots = [scan_path]
-    else:
-        scan_roots = _build_scan_roots(policy)
+    scan_roots = _deduplicate_scan_roots(roots)
     scanner_dir = str(Path(__file__).resolve().parent)
     seen_files: set[str] = set()
     files_scanned = 0

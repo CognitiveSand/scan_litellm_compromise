@@ -5,6 +5,8 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  release:
+    types: [published]
 
 jobs:
   test:
@@ -64,7 +66,7 @@ jobs:
         run: pip install mypy
 
       - name: Run mypy
-        run: mypy scan_litellm_compromise/ --ignore-missing-imports --check-untyped-defs
+        run: mypy scan_litellm_compromise/
 
   build:
     runs-on: ubuntu-latest
@@ -103,3 +105,18 @@ jobs:
             echo "ERROR: tag version ($TAG_VERSION) != package version ($PKG_VERSION)"
             exit 1
           fi
+
+  publish:
+    if: github.event_name == 'release'
+    needs: [test, lint, typecheck, build]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install build
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1

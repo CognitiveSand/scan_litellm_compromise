@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import glob as globmod
 import logging
 import os
 from pathlib import Path
@@ -12,34 +11,8 @@ from .config import DISCOVERY_SKIP_DIRS
 
 if TYPE_CHECKING:
     from .ecosystem_base import EcosystemPlugin
-    from .platform_policy import PlatformPolicy
 
 logger = logging.getLogger(__name__)
-
-
-def _build_search_roots(
-    policy: PlatformPolicy,
-    ecosystem: EcosystemPlugin,
-) -> list[str]:
-    """Combine platform roots with user-local conda/pipx/ecosystem dirs."""
-    roots = list(policy.search_roots)
-    home = Path.home()
-
-    for extra_dir in policy.home_conda_dirs():
-        candidate = home / extra_dir
-        if candidate.is_dir():
-            roots.append(str(candidate))
-
-    pipx_dir = policy.home_pipx_dir()
-    if pipx_dir is not None:
-        roots.append(str(pipx_dir))
-
-    for pattern in policy.conda_globs:
-        roots.extend(globmod.glob(pattern))
-
-    roots.extend(ecosystem.extra_search_roots())
-
-    return roots
 
 
 def _walk_for_metadata(
@@ -95,16 +68,11 @@ def _deduplicate_by_realpath(paths: list[Path]) -> list[Path]:
 
 
 def find_package_metadata(
-    policy: PlatformPolicy,
+    roots: list[str],
     ecosystem: EcosystemPlugin,
     package: str,
-    scan_path: str | None = None,
 ) -> list[Path]:
-    """Find all metadata directories for the given package on the system."""
-    if scan_path is not None:
-        roots = [scan_path]
-    else:
-        roots = _build_search_roots(policy, ecosystem)
+    """Find all metadata directories for the given package."""
     found: list[Path] = []
 
     is_npm = ecosystem.name == "npm"

@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.5.0 — 2026-04-01
+
+### Fixed (from critique review)
+- **Search-root consistency** — Discovery, IOC scanning, and source scanning now all use the same augmented search roots (conda, pipx, nvm, global npm). Previously, IOC phases missed locations that discovery could find. Roots are computed once and passed to every phase.
+- **`--scan-path` fails fast** — Exits with error code 2 if path does not exist or is not a directory. Previously, a typo would silently produce an empty "clean" scan.
+- **C2 port matching** — When threat profiles declare ports (e.g., axios C2 on port 8000), the network scanner matches `ip:port` in socket output instead of bare IP substring.
+- **Structural npm lockfile parsing** — `package-lock.json` is now parsed as JSON (checks `packages` and `dependencies` keys) instead of raw substring search. `yarn.lock` uses line-anchored matching. Reduces false positives and catches resolved phantom dependency versions.
+- **PyPI publish gated on CI** — Publish job now requires all test/lint/typecheck/build jobs to pass. Previously, the publish workflow ran independently of CI on release events.
+- **Changelog hygiene** — Added missing entries for v0.4.1–v0.4.3.
+
+### Added
+- **Release script** (`release.py`) — Single command to bump version, run pre-flight checks (tests, ruff, mypy), verify changelog, commit, tag, push, and create GitHub release. Prevents version desync between `pyproject.toml` and `__init__.py`.
+- **`search_roots.py`** — Shared module for computing augmented search roots (single source of truth).
+
+### Changed
+- Unified CI workflow — `ci.yml` now handles test, lint, typecheck, build, and publish (was split across two workflows).
+- `discovery.py`, `ioc_scanner.py`, `source_scanner.py` — Accept pre-computed roots instead of computing their own.
+
+## 0.4.3 — 2026-04-01
+
+### Added
+- mypy type checking in CI pipeline.
+- `[tool.mypy]` configuration in `pyproject.toml`.
+
+## 0.4.2 — 2026-04-01
+
+### Added
+- GitHub Actions CI workflow: test matrix (3.11/3.12/3.13 x Ubuntu/macOS/Windows), ruff lint+format, build verification.
+- Applied ruff auto-formatting across all source and test files.
+
+## 0.4.1 — 2026-04-01
+
+### Added
+- `__version__` displayed in banner and `--list-threats` output.
+- Loaded threat profiles listed at startup with ecosystem, package, and compromised versions.
+
 ## 0.4.0 — 2026-04-01
 
 ### Added
