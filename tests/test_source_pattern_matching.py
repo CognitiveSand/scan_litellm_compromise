@@ -7,6 +7,7 @@ import pytest
 
 from scan_supply_chain.ecosystem_pypi import PyPIPlugin
 from scan_supply_chain.source_scanner import _is_config_file
+from tests.conftest import matches_any
 
 
 # ── _is_config_file ──────────────────────────────────────────────────
@@ -90,9 +91,6 @@ class TestSourcePatternMatching:
     def import_patterns(self):
         return PyPIPlugin().import_patterns("litellm")
 
-    def _matches(self, patterns, line):
-        return any(p.search(line) for p in patterns)
-
     @pytest.mark.parametrize(
         "line",
         [
@@ -106,7 +104,7 @@ class TestSourcePatternMatching:
     )
     def test_matches_import_patterns(self, import_patterns, line):
         # @req FR-20
-        assert self._matches(import_patterns, line)
+        assert matches_any(import_patterns, line)
 
     @pytest.mark.parametrize(
         "line",
@@ -119,7 +117,7 @@ class TestSourcePatternMatching:
     )
     def test_rejects_non_import_patterns(self, import_patterns, line):
         # @req FR-20
-        assert not self._matches(import_patterns, line)
+        assert not matches_any(import_patterns, line)
 
 
 # ── Config pattern matching ──────────────────────────────────────────
@@ -129,9 +127,6 @@ class TestConfigPatternMatching:
     @pytest.fixture
     def dep_patterns(self):
         return PyPIPlugin().dep_patterns("litellm")
-
-    def _matches(self, patterns, line):
-        return any(p.search(line) for p in patterns)
 
     @pytest.mark.parametrize(
         "line",
@@ -145,7 +140,7 @@ class TestConfigPatternMatching:
     )
     def test_matches_dep_patterns(self, dep_patterns, line):
         # @req FR-21
-        assert self._matches(dep_patterns, line)
+        assert matches_any(dep_patterns, line)
 
     @pytest.mark.parametrize(
         "line",
@@ -156,4 +151,4 @@ class TestConfigPatternMatching:
     )
     def test_rejects_non_dep_patterns(self, dep_patterns, line):
         # @req FR-21
-        assert not self._matches(dep_patterns, line)
+        assert not matches_any(dep_patterns, line)

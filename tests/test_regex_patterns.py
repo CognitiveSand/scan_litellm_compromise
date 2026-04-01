@@ -5,8 +5,9 @@ Module under test: scan_supply_chain.ecosystem_pypi, ecosystem_npm
 
 import pytest
 
-from scan_supply_chain.ecosystem_pypi import PyPIPlugin
 from scan_supply_chain.ecosystem_npm import NpmPlugin
+from scan_supply_chain.ecosystem_pypi import PyPIPlugin
+from tests.conftest import matches_any
 
 
 # ── PyPI metadata dir pattern ────────────────────────────────────────
@@ -55,9 +56,6 @@ class TestPyPIImportPatterns:
     def patterns(self):
         return PyPIPlugin().import_patterns("litellm")
 
-    def _matches(self, patterns, line):
-        return any(p.search(line) for p in patterns)
-
     @pytest.mark.parametrize(
         "line",
         [
@@ -74,7 +72,7 @@ class TestPyPIImportPatterns:
     )
     def test_matches_litellm_usage(self, patterns, line):
         # @req FR-20
-        assert self._matches(patterns, line)
+        assert matches_any(patterns, line)
 
     @pytest.mark.parametrize(
         "line",
@@ -88,7 +86,7 @@ class TestPyPIImportPatterns:
     )
     def test_does_not_match_non_litellm_usage(self, patterns, line):
         # @req FR-20
-        assert not self._matches(patterns, line)
+        assert not matches_any(patterns, line)
 
 
 # ── PyPI dependency patterns ─────────────────────────────────────────
@@ -98,9 +96,6 @@ class TestPyPIDependencyPatterns:
     @pytest.fixture
     def patterns(self):
         return PyPIPlugin().dep_patterns("litellm")
-
-    def _matches(self, patterns, line):
-        return any(p.search(line) for p in patterns)
 
     @pytest.mark.parametrize(
         "line",
@@ -118,7 +113,7 @@ class TestPyPIDependencyPatterns:
     )
     def test_matches_litellm_dependency_lines(self, patterns, line):
         # @req FR-21
-        assert self._matches(patterns, line)
+        assert matches_any(patterns, line)
 
     @pytest.mark.parametrize(
         "line",
@@ -130,7 +125,7 @@ class TestPyPIDependencyPatterns:
     )
     def test_does_not_match_non_litellm_deps(self, patterns, line):
         # @req FR-21
-        assert not self._matches(patterns, line)
+        assert not matches_any(patterns, line)
 
 
 # ── PyPI pinned version extraction ───────────────────────────────────
@@ -184,9 +179,6 @@ class TestNpmImportPatterns:
     def patterns(self):
         return NpmPlugin().import_patterns("axios")
 
-    def _matches(self, patterns, line):
-        return any(p.search(line) for p in patterns)
-
     @pytest.mark.parametrize(
         "line",
         [
@@ -202,7 +194,7 @@ class TestNpmImportPatterns:
     )
     def test_matches_axios_usage(self, patterns, line):
         # @req FR-20
-        assert self._matches(patterns, line)
+        assert matches_any(patterns, line)
 
     @pytest.mark.parametrize(
         "line",
@@ -214,7 +206,7 @@ class TestNpmImportPatterns:
     )
     def test_does_not_match_non_axios_usage(self, patterns, line):
         # @req FR-20
-        assert not self._matches(patterns, line)
+        assert not matches_any(patterns, line)
 
 
 # ── npm dependency patterns ──────────────────────────────────────────
@@ -224,9 +216,6 @@ class TestNpmDependencyPatterns:
     @pytest.fixture
     def patterns(self):
         return NpmPlugin().dep_patterns("axios")
-
-    def _matches(self, patterns, line):
-        return any(p.search(line) for p in patterns)
 
     @pytest.mark.parametrize(
         "line",
@@ -240,7 +229,7 @@ class TestNpmDependencyPatterns:
     )
     def test_matches_axios_dependency_lines(self, patterns, line):
         # @req FR-21
-        assert self._matches(patterns, line)
+        assert matches_any(patterns, line)
 
     @pytest.mark.parametrize(
         "line",
@@ -251,7 +240,7 @@ class TestNpmDependencyPatterns:
     )
     def test_does_not_match_non_axios_deps(self, patterns, line):
         # @req FR-21
-        assert not self._matches(patterns, line)
+        assert not matches_any(patterns, line)
 
 
 # ── npm pinned version extraction ────────────────────────────────────

@@ -188,88 +188,49 @@ class TestCheckConfigDir:
 
 
 class TestCheckTmpScripts:
-    def test_flags_tmp_py_importing_package(self, tmp_path, monkeypatch):
+    def test_flags_tmp_py_importing_package(self, tmp_as_tmp):
         # @req FR-41 FR-37
-        monkeypatch.setattr(
-            "scan_supply_chain.persistence_scanner.Path",
-            lambda p: tmp_path if str(p) == "/tmp" else type(tmp_path)(p),
-        )
-        (tmp_path / "backdoor.py").write_text("import litellm\nlitellm.run()\n")
+        (tmp_as_tmp / "backdoor.py").write_text("import litellm\nlitellm.run()\n")
 
         results = ScanResults()
-        import scan_supply_chain.persistence_scanner as ps
-
-        original = ps.Path
-        ps.Path = lambda p: tmp_path if str(p) == "/tmp" else original(p)
-        try:
-            _check_tmp_scripts(results, "litellm")
-        finally:
-            ps.Path = original
+        _check_tmp_scripts(results, "litellm")
 
         assert any("backdoor.py" in f.description for f in results.findings)
 
-    def test_ignores_tmp_py_without_import(self, tmp_path, monkeypatch):
+    def test_ignores_tmp_py_without_import(self, tmp_as_tmp):
         # @req FR-41 FR-38
-        (tmp_path / "harmless.py").write_text("import os\nprint('hello')\n")
+        (tmp_as_tmp / "harmless.py").write_text("import os\nprint('hello')\n")
 
         results = ScanResults()
-        import scan_supply_chain.persistence_scanner as ps
-
-        original = ps.Path
-        ps.Path = lambda p: tmp_path if str(p) == "/tmp" else original(p)
-        try:
-            _check_tmp_scripts(results, "litellm")
-        finally:
-            ps.Path = original
+        _check_tmp_scripts(results, "litellm")
 
         assert results.findings == []
 
-    def test_ignores_tmp_py_with_string_mention_only(self, tmp_path, monkeypatch):
+    def test_ignores_tmp_py_with_string_mention_only(self, tmp_as_tmp):
         # @req FR-38
-        (tmp_path / "scanner.py").write_text('name = "litellm"\nprint(name)\n')
+        (tmp_as_tmp / "scanner.py").write_text('name = "litellm"\nprint(name)\n')
 
         results = ScanResults()
-        import scan_supply_chain.persistence_scanner as ps
-
-        original = ps.Path
-        ps.Path = lambda p: tmp_path if str(p) == "/tmp" else original(p)
-        try:
-            _check_tmp_scripts(results, "litellm")
-        finally:
-            ps.Path = original
+        _check_tmp_scripts(results, "litellm")
 
         assert results.findings == []
 
-    def test_flags_tmp_sh_mentioning_package(self, tmp_path, monkeypatch):
+    def test_flags_tmp_sh_mentioning_package(self, tmp_as_tmp):
         # @req FR-41
-        (tmp_path / "install.sh").write_text("#!/bin/bash\npip install litellm\n")
+        (tmp_as_tmp / "install.sh").write_text("#!/bin/bash\npip install litellm\n")
 
         results = ScanResults()
-        import scan_supply_chain.persistence_scanner as ps
-
-        original = ps.Path
-        ps.Path = lambda p: tmp_path if str(p) == "/tmp" else original(p)
-        try:
-            _check_tmp_scripts(results, "litellm")
-        finally:
-            ps.Path = original
+        _check_tmp_scripts(results, "litellm")
 
         assert any("install.sh" in f.description for f in results.findings)
 
-    def test_ignores_tmp_sh_without_package(self, tmp_path, monkeypatch):
+    def test_ignores_tmp_sh_without_package(self, tmp_as_tmp):
         # @req FR-41
-        (tmp_path / "backup.sh").write_text(
+        (tmp_as_tmp / "backup.sh").write_text(
             "#!/bin/bash\ntar czf backup.tar.gz /home\n"
         )
 
         results = ScanResults()
-        import scan_supply_chain.persistence_scanner as ps
-
-        original = ps.Path
-        ps.Path = lambda p: tmp_path if str(p) == "/tmp" else original(p)
-        try:
-            _check_tmp_scripts(results, "litellm")
-        finally:
-            ps.Path = original
+        _check_tmp_scripts(results, "litellm")
 
         assert results.findings == []

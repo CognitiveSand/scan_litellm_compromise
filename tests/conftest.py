@@ -245,3 +245,34 @@ def litellm_threat() -> ThreatProfile:
 @pytest.fixture
 def axios_threat() -> ThreatProfile:
     return make_axios_threat()
+
+
+# ── Shared test helpers ───────────────────────────────────────────────
+
+
+def matches_any(patterns: list, line: str) -> bool:
+    """Check if any regex pattern matches a line."""
+    return any(p.search(line) for p in patterns)
+
+
+@pytest.fixture
+def fake_home(tmp_path, monkeypatch):
+    """Redirect Path.home() to tmp_path for scanner modules."""
+    for mod in (
+        "cache_scanner",
+        "history_scanner",
+        "persistence_scanner",
+    ):
+        monkeypatch.setattr(f"scan_supply_chain.{mod}.Path.home", lambda: tmp_path)
+    return tmp_path
+
+
+@pytest.fixture
+def tmp_as_tmp(tmp_path):
+    """Make /tmp point to tmp_path for persistence scanner tests."""
+    import scan_supply_chain.persistence_scanner as ps
+
+    original = ps.Path
+    ps.Path = lambda p: tmp_path if str(p) == "/tmp" else original(p)
+    yield tmp_path
+    ps.Path = original
