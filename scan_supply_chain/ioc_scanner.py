@@ -25,9 +25,7 @@ from .models import ScanResults
 from .skip_report import note_permission_error, note_read_error
 
 if TYPE_CHECKING:
-    from .ecosystem_base import EcosystemPlugin
-    from .platform_policy import PlatformPolicy
-    from .threat_profile import ThreatProfile
+    from .scan_context import ScanContext
 
 logger = logging.getLogger(__name__)
 
@@ -64,19 +62,15 @@ def _check_known_paths(
 # ── Individual IOC scanners ──────────────────────────────────────────────
 
 
-def _scan_walk_files(
-    results: ScanResults,
-    threat: ThreatProfile,
-    roots: list[str],
-) -> None:
+def _scan_walk_files(results: ScanResults, ctx: ScanContext) -> None:
     """Walk filesystem looking for IOC files by name (and optionally hash)."""
-    for walk_ioc in threat.walk_files:
+    for walk_ioc in ctx.threat.walk_files:
         print_check_header(walk_ioc.description)
         found = False
         target_names = set(walk_ioc.filenames)
         known_hashes = set(walk_ioc.sha256)
 
-        for root in roots:
+        for root in ctx.roots:
             root_path = Path(root)
             if not root_path.is_dir():
                 continue
@@ -106,21 +100,20 @@ def _scan_walk_files(
             print_clean()
 
 
-def _scan_known_paths(
-    results: ScanResults,
-    threat: ThreatProfile,
-) -> None:
+def _scan_known_paths(results: ScanResults, ctx: ScanContext) -> None:
     """Check per-platform known paths from the threat profile."""
-    for kp in threat.known_paths:
+    for kp in ctx.threat.known_paths:
         paths = [_expand_path(p) for p in kp.paths_for_platform()]
         _check_known_paths(kp.description, paths, results)
 
 
-def _resolve_c2_ips(threat: ThreatProfile, resolve_dns: bool) -> dict[str, list[str]]:
+def _resolve_c2_ips(ctx: ScanContext) -> dict[str, list[str]]:
     """Build domain -> IPs mapping. Uses known IPs; optionally adds live DNS."""
-    result: dict[str, list[str]] = {d: list(ips) for d, ips in threat.c2.ips.items()}
-    if resolve_dns:
-        for domain in threat.c2.domains:
+    result: dict[str, list[str]] = {
+        d: list(ips) for d, ips in ctx.threat.c2.ips.items()
+    }
+    if ctx.resolve_c2:
+        for domain in ctx.threat.c2.domains:
             try:
                 live_ip = socket.gethostbyname(domain)
                 ips = result.setdefault(domain, [])
@@ -131,12 +124,7 @@ def _resolve_c2_ips(threat: ThreatProfile, resolve_dns: bool) -> dict[str, list[
     return result
 
 
-def _scan_for_c2_connections(
-    results: ScanResults,
-    threat: ThreatProfile,
-    policy: PlatformPolicy,
-    resolve_c2: bool = False,
-) -> None:
+def _scan_for_c2_connections(results: ScanResults, ctx: ScanContext) -> None:
     """Check active network connections for C2 domain communication."""
     from .models import Finding, FindingCategory
     from .network_scanner import (
@@ -146,16 +134,17 @@ def _scan_for_c2_connections(
         parse_ss_output,
     )
 
+    threat = ctx.threat
     if not threat.c2.domains and not threat.c2.ips:
         return
 
     print_check_header("active network connections for C2 domains")
-    if resolve_c2:
+    if ctx.resolve_c2:
         print(
             f"  {YELLOW}{BOLD}NOTE:{RESET} --resolve-c2 enabled "
             f"-- making live DNS queries to C2 domains"
         )
-    command = policy.network_check_command
+    command = ctx.policy.network_check_command
     if command is None or not shutil.which(command[0]):
         print_clean(
             f"{command[0] if command else 'network tool'} not available, skipping"
@@ -163,7 +152,7 @@ def _scan_for_c2_connections(
         return
 
     found = False
-    domain_ips = _resolve_c2_ips(threat, resolve_c2)
+    domain_ips = _resolve_c2_ips(ctx)
     try:
         raw_output = subprocess.run(
             command, capture_output=True, timeout=5
@@ -203,14 +192,15 @@ def _scan_for_c2_connections(
         print_clean("No suspicious connections")
 
 
-def _scan_for_malicious_pods(results: ScanResults, threat: ThreatProfile) -> None:
+def _scan_for_malicious_pods(results: ScanResults, ctx: ScanContext) -> None:
     """Check Kubernetes for suspicious pods defined in the threat profile."""
-    if not threat.kubernetes.pod_patterns:
+    kubernetes = ctx.threat.kubernetes
+    if not kubernetes.pod_patterns:
         return
     if not shutil.which("kubectl"):
         return
 
-    namespace = threat.kubernetes.namespace or "kube-system"
+    namespace = kubernetes.namespace or "kube-system"
     print_check_header(f"Kubernetes malicious pods ({namespace})")
     try:
         kubectl_output = subprocess.run(
@@ -225,7 +215,7 @@ def _scan_for_malicious_pods(results: ScanResults, threat: ThreatProfile) -> Non
             for line in kubectl_output.splitlines()
             if any(
                 line.strip().startswith(pattern)
-                for pattern in threat.kubernetes.pod_patterns
+                for pattern in kubernetes.pod_patterns
             )
         ]
 
@@ -240,20 +230,15 @@ def _scan_for_malicious_pods(results: ScanResults, threat: ThreatProfile) -> Non
         logger.debug("Failed to query Kubernetes pods")
 
 
-def _scan_phantom_deps(
-    results: ScanResults,
-    threat: ThreatProfile,
-    ecosystem: EcosystemPlugin,
-    roots: list[str],
-) -> None:
+def _scan_phantom_deps(results: ScanResults, ctx: ScanContext) -> None:
     """Check for phantom dependencies that should not exist."""
-    if not threat.phantom_deps:
+    if not ctx.threat.phantom_deps:
         return
 
     print_check_header("phantom dependencies (should not exist)")
-    found_iocs = ecosystem.find_phantom_deps(
-        threat.phantom_deps,
-        roots,
+    found_iocs = ctx.ecosystem.find_phantom_deps(
+        ctx.threat.phantom_deps,
+        ctx.roots,
     )
     if found_iocs:
         for ioc in found_iocs:
@@ -263,18 +248,15 @@ def _scan_phantom_deps(
         print_clean("No phantom dependencies found")
 
 
-def _scan_windows_extras(
-    results: ScanResults,
-    threat: ThreatProfile,
-) -> None:
+def _scan_windows_extras(results: ScanResults, ctx: ScanContext) -> None:
     """Run Windows-specific IOC checks if applicable."""
     import sys
 
     if sys.platform != "win32":
         return
 
-    registry_kw = threat.windows_ioc.registry_keywords
-    schtask_kw = threat.windows_ioc.schtask_keywords
+    registry_kw = ctx.threat.windows_ioc.registry_keywords
+    schtask_kw = ctx.threat.windows_ioc.schtask_keywords
     if not registry_kw and not schtask_kw:
         return
 
@@ -286,30 +268,24 @@ def _scan_windows_extras(
 # ── Public entry point ───────────────────────────────────────────────────
 
 
-def scan_iocs(
-    results: ScanResults,
-    threat: ThreatProfile,
-    ecosystem: EcosystemPlugin,
-    policy: PlatformPolicy,
-    roots: list[str],
-    resolve_c2: bool = False,
-) -> None:
+def scan_iocs(results: ScanResults, ctx: ScanContext) -> None:
     """Run all IOC artifact scans for a single threat profile."""
+    threat = ctx.threat
     if threat.walk_files:
-        _scan_walk_files(results, threat, roots)
+        _scan_walk_files(results, ctx)
         print()
 
     if threat.known_paths:
-        _scan_known_paths(results, threat)
+        _scan_known_paths(results, ctx)
         print()
 
-    _scan_for_c2_connections(results, threat, policy, resolve_c2=resolve_c2)
+    _scan_for_c2_connections(results, ctx)
 
-    _scan_for_malicious_pods(results, threat)
+    _scan_for_malicious_pods(results, ctx)
 
-    _scan_phantom_deps(results, threat, ecosystem, roots)
+    _scan_phantom_deps(results, ctx)
 
-    _scan_windows_extras(results, threat)
+    _scan_windows_extras(results, ctx)
 
     from .cache_scanner import scan_caches
     from .history_scanner import scan_history

@@ -16,9 +16,11 @@ from scan_supply_chain.ioc_scanner import (
 )
 from scan_supply_chain.models import ScanResults
 from tests.conftest import (
+    StubEcosystem,
     StubPolicy,
     make_axios_threat,
     make_litellm_threat,
+    make_scan_context,
     mock_subprocess_run,
     mock_subprocess_timeout,
     mock_tool_available,
@@ -103,7 +105,8 @@ class TestScanWalkFiles:
             ],
         )
         results = ScanResults()
-        _scan_walk_files(results, threat, [str(tmp_path)])
+        ctx = make_scan_context(threat, StubEcosystem(), [str(tmp_path)])
+        _scan_walk_files(results, ctx)
 
         assert len(results.iocs) == 1
         assert "litellm_init.pth" in results.iocs[0]
@@ -115,7 +118,8 @@ class TestScanWalkFiles:
         threat = make_litellm_threat()
 
         results = ScanResults()
-        _scan_walk_files(results, threat, [str(tmp_path)])
+        ctx = make_scan_context(threat, StubEcosystem(), [str(tmp_path)])
+        _scan_walk_files(results, ctx)
 
         assert results.iocs == []
         captured = capsys.readouterr().out
@@ -126,7 +130,10 @@ class TestScanWalkFiles:
         threat = make_litellm_threat()
 
         results = ScanResults()
-        _scan_walk_files(results, threat, ["/nonexistent/path/that/does/not/exist"])
+        ctx = make_scan_context(
+            threat, StubEcosystem(), ["/nonexistent/path/that/does/not/exist"]
+        )
+        _scan_walk_files(results, ctx)
 
         assert results.iocs == []
 
@@ -149,7 +156,8 @@ class TestScanWalkFiles:
         )
 
         results = ScanResults()
-        _scan_walk_files(results, threat, [str(tmp_path)])
+        ctx = make_scan_context(threat, StubEcosystem(), [str(tmp_path)])
+        _scan_walk_files(results, ctx)
 
         assert results.iocs == []
 
@@ -172,7 +180,8 @@ class TestScanWalkFiles:
         )
 
         results = ScanResults()
-        _scan_walk_files(results, threat, [str(tmp_path)])
+        ctx = make_scan_context(threat, StubEcosystem(), [str(tmp_path)])
+        _scan_walk_files(results, ctx)
 
         assert len(results.iocs) == 1
 
@@ -193,7 +202,8 @@ class TestScanWalkFiles:
         )
 
         results = ScanResults()
-        _scan_walk_files(results, threat, [str(tmp_path)])
+        ctx = make_scan_context(threat, StubEcosystem(), [str(tmp_path)])
+        _scan_walk_files(results, ctx)
 
         assert len(results.iocs) == 1
 
@@ -205,7 +215,8 @@ class TestResolveC2Ips:
     def test_returns_known_ips_when_dns_disabled(self):
         # @req FR-14
         threat = make_litellm_threat()
-        result = _resolve_c2_ips(threat, resolve_dns=False)
+        ctx = make_scan_context(threat, StubEcosystem(), [], resolve_c2=False)
+        result = _resolve_c2_ips(ctx)
 
         for domain, known_ips in threat.c2.ips.items():
             assert domain in result
@@ -221,7 +232,8 @@ class TestResolveC2Ips:
         )
 
         threat = make_litellm_threat()
-        _resolve_c2_ips(threat, resolve_dns=False)
+        ctx = make_scan_context(threat, StubEcosystem(), [], resolve_c2=False)
+        _resolve_c2_ips(ctx)
 
         assert dns_called == []
 
@@ -233,7 +245,8 @@ class TestResolveC2Ips:
         )
 
         threat = make_litellm_threat()
-        result = _resolve_c2_ips(threat, resolve_dns=True)
+        ctx = make_scan_context(threat, StubEcosystem(), [], resolve_c2=True)
+        result = _resolve_c2_ips(ctx)
 
         for domain in threat.c2.ips:
             assert "99.99.99.99" in result[domain]
@@ -248,7 +261,8 @@ class TestResolveC2Ips:
             lambda d: known_ip,
         )
 
-        result = _resolve_c2_ips(threat, resolve_dns=True)
+        ctx = make_scan_context(threat, StubEcosystem(), [], resolve_c2=True)
+        result = _resolve_c2_ips(ctx)
 
         assert result[first_domain].count(known_ip) == 1
 
@@ -262,7 +276,8 @@ class TestResolveC2Ips:
         )
 
         threat = make_litellm_threat()
-        result = _resolve_c2_ips(threat, resolve_dns=True)
+        ctx = make_scan_context(threat, StubEcosystem(), [], resolve_c2=True)
+        result = _resolve_c2_ips(ctx)
 
         for domain, known_ips in threat.c2.ips.items():
             assert domain in result
@@ -299,7 +314,8 @@ class TestScanForC2Connections:
         policy.network_check_command = ["ss", "-tnp"]
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert len(results.iocs) >= 1
         assert any("connection:" in ioc and known_ip in ioc for ioc in results.iocs)
@@ -316,7 +332,8 @@ class TestScanForC2Connections:
         policy.network_check_command = ["ss", "-tnp"]
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert results.iocs == []
         captured = capsys.readouterr().out
@@ -333,7 +350,8 @@ class TestScanForC2Connections:
         policy.network_check_command = ["ss", "-tnp"]
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert results.iocs == []
 
@@ -344,7 +362,8 @@ class TestScanForC2Connections:
         policy.network_check_command = None
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert results.iocs == []
 
@@ -358,7 +377,8 @@ class TestScanForC2Connections:
         policy.network_check_command = ["ss", "-tnp"]
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert results.iocs == []
 
@@ -377,7 +397,8 @@ class TestScanForMaliciousPods:
 
         threat = make_litellm_threat()
         results = ScanResults()
-        _scan_for_malicious_pods(results, threat)
+        ctx = make_scan_context(threat, StubEcosystem(), [])
+        _scan_for_malicious_pods(results, ctx)
 
         assert len(results.iocs) == 1
         assert "k8s-pods:1" in results.iocs[0]
@@ -392,7 +413,8 @@ class TestScanForMaliciousPods:
 
         threat = make_litellm_threat()
         results = ScanResults()
-        _scan_for_malicious_pods(results, threat)
+        ctx = make_scan_context(threat, StubEcosystem(), [])
+        _scan_for_malicious_pods(results, ctx)
 
         assert results.iocs == []
         captured = capsys.readouterr().out
@@ -406,7 +428,8 @@ class TestScanForMaliciousPods:
 
         threat = make_litellm_threat()
         results = ScanResults()
-        _scan_for_malicious_pods(results, threat)
+        ctx = make_scan_context(threat, StubEcosystem(), [])
+        _scan_for_malicious_pods(results, ctx)
 
         assert results.iocs == []
 
@@ -418,7 +441,8 @@ class TestScanForMaliciousPods:
             ).KubernetesIOC(),
         )
         results = ScanResults()
-        _scan_for_malicious_pods(results, threat)
+        ctx = make_scan_context(threat, StubEcosystem(), [])
+        _scan_for_malicious_pods(results, ctx)
         assert results.iocs == []
 
 
@@ -449,7 +473,8 @@ class TestC2StructuredDetection:
         policy.network_check_command = ["ss", "-tnp"]
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert len(results.iocs) >= 1
         assert any("connection:" in ioc for ioc in results.iocs)
@@ -478,6 +503,7 @@ class TestC2StructuredDetection:
         policy.network_check_command = ["ss", "-tnp"]
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert results.iocs == []

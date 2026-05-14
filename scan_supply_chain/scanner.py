@@ -22,6 +22,7 @@ from .git_repo_index import build_repo_index
 from .ioc_scanner import scan_iocs
 from .models import ScanResults
 from .platform_policy import detect_platform
+from .scan_context import ScanContext
 from .report import (
     print_anti_worm_report,
     print_config_refs,
@@ -116,14 +117,9 @@ def _resolve_threats(args: argparse.Namespace) -> list[ThreatProfile]:
     return load_all_threats()
 
 
-def _scan_single_threat(
-    threat: ThreatProfile,
-    policy,
-    roots: list[str],
-    resolve_c2: bool,
-) -> ScanResults:
+def _scan_single_threat(ctx: ScanContext) -> ScanResults:
     """Run the full 5-phase pipeline for one threat profile."""
-    ecosystem = get_ecosystem(threat.ecosystem)
+    threat = ctx.threat
     results = ScanResults(compromised_versions=threat.compromised)
 
     print_separator()
@@ -134,7 +130,7 @@ def _scan_single_threat(
 
     # Phase 1: Discover installations
     print_phase_header(1, f"Discovering {threat.package} installations...")
-    metadata_dirs = find_package_metadata(roots, ecosystem, threat.package)
+    metadata_dirs = find_package_metadata(ctx.roots, ctx.ecosystem, threat.package)
     print(
         f"  Found {BOLD}{len(metadata_dirs)}{RESET} "
         f"{threat.package} metadata directories"
@@ -146,18 +142,18 @@ def _scan_single_threat(
         2,
         f"Checking {threat.package} versions from metadata...",
     )
-    scan_environments(metadata_dirs, results, ecosystem, threat)
+    scan_environments(metadata_dirs, results, ctx.ecosystem, threat)
 
     # Phase 3: IOC artifact scan
     print_phase_header(3, "Scanning for IOC artifacts...")
-    scan_iocs(results, threat, ecosystem, policy, roots, resolve_c2=resolve_c2)
+    scan_iocs(results, ctx)
 
     # Phase 4: Source & config scan
     print_phase_header(
         4,
         f"Scanning source files for {threat.package} usage...",
     )
-    files_scanned = scan_source_and_configs(results, threat, ecosystem, roots)
+    files_scanned = scan_source_and_configs(results, ctx)
     print(f"  Files scanned: {BOLD}{files_scanned}{RESET}\n")
     print_source_refs(results.source_refs, threat.package)
     print_config_refs(
@@ -218,13 +214,14 @@ def main():
     # Run pipeline for each threat
     all_results: list[tuple[ThreatProfile, ScanResults]] = []
     for threat in threats:
-        roots = roots_cache[threat.ecosystem]
-        results = _scan_single_threat(
-            threat,
-            policy,
-            roots,
-            args.resolve_c2,
+        ctx = ScanContext(
+            threat=threat,
+            ecosystem=get_ecosystem(threat.ecosystem),
+            policy=policy,
+            roots=roots_cache[threat.ecosystem],
+            resolve_c2=args.resolve_c2,
         )
+        results = _scan_single_threat(ctx)
         all_results.append((threat, results))
 
     # Final combined report — anti-worm section first, then per-threat,

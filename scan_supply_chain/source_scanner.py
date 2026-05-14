@@ -11,8 +11,7 @@ from .config import SOURCE_SCAN_SKIP_DIRS, pruned_walk
 from .models import ConfigReference, ScanResults, SourceReference
 
 if TYPE_CHECKING:
-    from .ecosystem_base import EcosystemPlugin
-    from .threat_profile import ThreatProfile
+    from .scan_context import ScanContext
 
 logger = logging.getLogger(__name__)
 
@@ -99,17 +98,14 @@ def _scan_file_lines(
 # ── Public entry point ───────────────────────────────────────────────────
 
 
-def scan_source_and_configs(
-    results: ScanResults,
-    threat: ThreatProfile,
-    ecosystem: EcosystemPlugin,
-    roots: list[str],
-) -> int:
+def scan_source_and_configs(results: ScanResults, ctx: ScanContext) -> int:
     """Scan source and config files for package usage.
 
     Returns the number of files scanned.
     """
-    scan_roots = roots  # already deduplicated by build_search_roots()
+    ecosystem = ctx.ecosystem
+    package = ctx.threat.package
+    scan_roots = ctx.roots  # already deduplicated by build_search_roots()
     scanner_dir = str(Path(__file__).resolve().parent)
     seen_files: set[str] = set()
     files_scanned = 0
@@ -118,9 +114,9 @@ def scan_source_and_configs(
     config_names = ecosystem.config_filenames
     config_exts = ecosystem.config_extensions
     cfg_fn_pattern = ecosystem.config_filename_pattern()
-    import_pats = ecosystem.import_patterns(threat.package)
-    dep_pats = ecosystem.dep_patterns(threat.package)
-    pinned_pat = ecosystem.pinned_version_pattern(threat.package)
+    import_pats = ecosystem.import_patterns(package)
+    dep_pats = ecosystem.dep_patterns(package)
+    pinned_pat = ecosystem.pinned_version_pattern(package)
 
     ext_label = ", ".join(sorted(f"*{e}" for e in source_exts))
     print(f"  Scanning {ext_label} files, config/dependency files, etc.")
@@ -160,7 +156,7 @@ def scan_source_and_configs(
                     file_path,
                     is_source,
                     results,
-                    threat.package,
+                    package,
                     import_pats,
                     dep_pats,
                     pinned_pat,

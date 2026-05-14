@@ -92,7 +92,7 @@ class TestAstFallbackIntegration:
         from scan_supply_chain.ecosystem_pypi import PyPIPlugin
         from scan_supply_chain.models import ScanResults
         from scan_supply_chain.source_scanner import scan_source_and_configs
-        from tests.conftest import make_litellm_threat
+        from tests.conftest import make_litellm_threat, make_scan_context
 
         # Create a .py file that mentions litellm in strings but doesn't import it
         scanner_like = tmp_path / "scanner_code.py"
@@ -103,11 +103,11 @@ class TestAstFallbackIntegration:
             'name = "litellm"\n'
         )
 
-        ecosystem = PyPIPlugin()
         threat = make_litellm_threat()
         results = ScanResults(compromised_versions=threat.compromised)
+        ctx = make_scan_context(threat, PyPIPlugin(), [str(tmp_path)])
 
-        scan_source_and_configs(results, threat, ecosystem, [str(tmp_path)])
+        scan_source_and_configs(results, ctx)
 
         # AST should produce zero results — no actual imports
         assert results.source_refs == []
@@ -117,16 +117,16 @@ class TestAstFallbackIntegration:
         from scan_supply_chain.ecosystem_pypi import PyPIPlugin
         from scan_supply_chain.models import ScanResults
         from scan_supply_chain.source_scanner import scan_source_and_configs
-        from tests.conftest import make_litellm_threat
+        from tests.conftest import make_litellm_threat, make_scan_context
 
         real_usage = tmp_path / "app.py"
         real_usage.write_text("import litellm\nx = litellm.completion('hi')\n")
 
-        ecosystem = PyPIPlugin()
         threat = make_litellm_threat()
         results = ScanResults(compromised_versions=threat.compromised)
+        ctx = make_scan_context(threat, PyPIPlugin(), [str(tmp_path)])
 
-        scan_source_and_configs(results, threat, ecosystem, [str(tmp_path)])
+        scan_source_and_configs(results, ctx)
 
         assert len(results.source_refs) >= 1
         assert any("import litellm" in r.line_content for r in results.source_refs)

@@ -11,6 +11,7 @@ from scan_supply_chain.models import (
     ScanResults,
     SourceReference,
 )
+from scan_supply_chain.scan_context import ScanContext
 from scan_supply_chain.threat_profile import (
     C2Info,
     KnownPathIOC,
@@ -181,6 +182,24 @@ def make_axios_threat(**overrides) -> ThreatProfile:
     )
     defaults.update(overrides)
     return ThreatProfile(**defaults)
+
+
+def make_scan_context(
+    threat: ThreatProfile,
+    ecosystem,
+    roots: list[str],
+    *,
+    policy=None,
+    resolve_c2: bool = False,
+) -> ScanContext:
+    """Build a ScanContext for tests with sensible defaults."""
+    return ScanContext(
+        threat=threat,
+        ecosystem=ecosystem,
+        policy=policy or StubPolicy(),
+        roots=roots,
+        resolve_c2=resolve_c2,
+    )
 
 
 # ── Model fixtures ─────────────────────────────────────────────────────
