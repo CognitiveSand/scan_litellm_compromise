@@ -10,6 +10,7 @@ from scan_supply_chain.cache_scanner import (
     scan_caches,
 )
 from scan_supply_chain.models import ScanResults
+from scan_supply_chain.skip_report import SkipReport
 
 
 class TestScanPipCache:
@@ -21,7 +22,7 @@ class TestScanPipCache:
         (tmp_path / "wheels" / "litellm-1.82.7.whl").mkdir(parents=True)
 
         results = ScanResults()
-        _scan_pip_cache(results, "litellm")
+        _scan_pip_cache(results, "litellm", SkipReport())
 
         assert len(results.findings) == 1
         assert "pip cache" in results.findings[0].description
@@ -34,7 +35,7 @@ class TestScanPipCache:
         (tmp_path / "wheels" / "flask-3.0.whl").mkdir(parents=True)
 
         results = ScanResults()
-        _scan_pip_cache(results, "litellm")
+        _scan_pip_cache(results, "litellm", SkipReport())
 
         assert results.findings == []
 
@@ -46,7 +47,7 @@ class TestScanPipCache:
         )
 
         results = ScanResults()
-        _scan_pip_cache(results, "litellm")
+        _scan_pip_cache(results, "litellm", SkipReport())
 
         assert results.findings == []
 
@@ -62,7 +63,7 @@ class TestScanNpmCache:
         (cacache / "axios-1.14.1.tgz").write_text("")
 
         results = ScanResults()
-        _scan_npm_cache(results, "axios")
+        _scan_npm_cache(results, "axios", SkipReport())
 
         assert len(results.findings) == 1
         assert "npm cache" in results.findings[0].description
@@ -77,7 +78,7 @@ class TestScanNpmCache:
         (cacache / "lodash-4.17.tgz").write_text("")
 
         results = ScanResults()
-        _scan_npm_cache(results, "axios")
+        _scan_npm_cache(results, "axios", SkipReport())
 
         assert results.findings == []
 
@@ -92,7 +93,7 @@ class TestScanPnpmStore:
         (store / "plain-crypto-js").mkdir(parents=True)
 
         results = ScanResults()
-        _scan_pnpm_store(results, "plain-crypto-js")
+        _scan_pnpm_store(results, "plain-crypto-js", SkipReport())
 
         assert len(results.findings) == 1
         assert "pnpm store" in results.findings[0].description

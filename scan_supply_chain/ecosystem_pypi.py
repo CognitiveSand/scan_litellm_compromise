@@ -46,7 +46,7 @@ class PyPIPlugin:
         escaped = re.escape(package)
         return re.compile(rf"^{escaped}-([^/\\]+)\.(dist-info|egg-info)$")
 
-    def extract_version(self, metadata_path: Path) -> str | None:
+    def extract_version(self, metadata_path: Path, skip_report) -> str | None:
         """Read Version from METADATA or PKG-INFO; fallback to dir name."""
         version_re = re.compile(r"^Version:\s*(.+)$", re.MULTILINE)
 
@@ -55,7 +55,11 @@ class PyPIPlugin:
             if candidate.is_file():
                 try:
                     text = candidate.read_text(errors="ignore")
-                except (PermissionError, OSError):
+                except PermissionError:
+                    skip_report.record_permission(candidate)
+                    continue
+                except OSError as exc:
+                    skip_report.record_read_error(candidate, type(exc).__name__)
                     continue
                 match = version_re.search(text)
                 if match:

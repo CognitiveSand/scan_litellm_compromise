@@ -65,7 +65,7 @@ class StubEcosystem:
 
         return re.compile(rf"^{re.escape(package)}-([^/\\]+)\.(dist-info|egg-info)$")
 
-    def extract_version(self, metadata_path):
+    def extract_version(self, metadata_path, skip_report):
         return None
 
     def import_patterns(self, package):

@@ -154,7 +154,7 @@ def _scan_single_threat(ctx: ScanContext) -> ScanResults:
         2,
         f"Checking {threat.package} versions from metadata...",
     )
-    scan_environments(metadata_dirs, results, ctx.ecosystem, threat)
+    scan_environments(metadata_dirs, results, ctx.ecosystem, threat, ctx.skip_report)
 
     # Phase 3: IOC artifact scan
     print_phase_header(3, "Scanning for IOC artifacts...")
@@ -307,7 +307,7 @@ def _run_phase3_iocs(results: ScanResults, ctx: ScanContext) -> None:
     scan_persistence(
         results, threat.package, threat.persistence_keywords, ctx.skip_report
     )
-    scan_caches(results, threat.package, threat.ecosystem)
+    scan_caches(results, threat.package, threat.ecosystem, ctx.skip_report)
     scan_history(results, threat.package, threat.ecosystem, ctx.skip_report)
 
 

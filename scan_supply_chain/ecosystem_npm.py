@@ -45,17 +45,25 @@ class NpmPlugin:
         escaped = re.escape(package)
         return re.compile(rf"^{escaped}$")
 
-    def extract_version(self, metadata_path: Path) -> str | None:
+    def extract_version(self, metadata_path: Path, skip_report) -> str | None:
         """Read version from node_modules/{pkg}/package.json."""
         pkg_json = metadata_path / "package.json"
         if not pkg_json.is_file():
             return None
         try:
-            data = json.loads(pkg_json.read_text(errors="ignore"))
-            return data.get("version")
-        except (json.JSONDecodeError, PermissionError, OSError):
-            logger.debug("Cannot read %s", pkg_json)
+            text = pkg_json.read_text(errors="ignore")
+        except PermissionError:
+            skip_report.record_permission(pkg_json)
             return None
+        except OSError as exc:
+            skip_report.record_read_error(pkg_json, type(exc).__name__)
+            return None
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            logger.debug("Cannot parse %s as JSON", pkg_json)
+            return None
+        return data.get("version")
 
     def import_patterns(self, package: str) -> list[re.Pattern]:
         escaped = re.escape(package)

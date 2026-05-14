@@ -96,24 +96,42 @@ def _check_config_dir(
     search_terms: Sequence[str],
     skip_report: SkipReport,
 ) -> None:
-    """Glob a config directory for files mentioning any search term."""
+    """Glob a config directory for files mentioning any search term.
+
+    Errors are attributed to the file that produced them, not to the
+    parent directory: a per-file try/except wraps each ``read_text``,
+    and the glob enumeration is wrapped separately so a permission
+    denial on ``directory`` itself is still recorded against that
+    directory.
+    """
     if not directory.is_dir():
         return
     try:
-        for config_file in directory.glob(glob_pattern):
-            text = config_file.read_text(errors="ignore")
-            matched = _matched_term(text, search_terms)
-            if matched is not None:
-                results.add_finding(
-                    FindingCategory.PERSISTENCE,
-                    f"{label}: {config_file.name} mentions {matched}",
-                    str(config_file),
-                    2,
-                )
+        config_files = list(directory.glob(glob_pattern))
     except PermissionError:
         skip_report.record_permission(directory)
+        return
     except OSError as exc:
         skip_report.record_read_error(directory, type(exc).__name__)
+        return
+
+    for config_file in config_files:
+        try:
+            text = config_file.read_text(errors="ignore")
+        except PermissionError:
+            skip_report.record_permission(config_file)
+            continue
+        except OSError as exc:
+            skip_report.record_read_error(config_file, type(exc).__name__)
+            continue
+        matched = _matched_term(text, search_terms)
+        if matched is not None:
+            results.add_finding(
+                FindingCategory.PERSISTENCE,
+                f"{label}: {config_file.name} mentions {matched}",
+                str(config_file),
+                2,
+            )
 
 
 # ── Individual checkers ─────────────────────────────────────────────────

@@ -123,19 +123,41 @@ def _scan_known_paths(results: ScanResults, ctx: ScanContext) -> None:
 
 
 def _resolve_c2_ips(ctx: ScanContext) -> dict[str, list[str]]:
-    """Build domain -> IPs mapping. Uses known IPs; optionally adds live DNS."""
+    """Build domain -> IPs mapping. Uses known IPs; optionally adds live DNS.
+
+    When ``ctx.resolve_c2`` is set, NXDOMAIN failures are tallied and
+    surfaced so the operator does not silently get partial coverage if
+    a takedown removed every C2 domain from public DNS.
+    """
     result: dict[str, list[str]] = {
         d: list(ips) for d, ips in ctx.threat.c2.ips.items()
     }
-    if ctx.resolve_c2:
-        for domain in ctx.threat.c2.domains:
-            try:
-                live_ip = socket.gethostbyname(domain)
-                ips = result.setdefault(domain, [])
-                if live_ip not in ips:
-                    ips.append(live_ip)
-            except socket.gaierror:
-                logger.debug("Cannot resolve C2 domain %s", domain)
+    if not ctx.resolve_c2 or not ctx.threat.c2.domains:
+        return result
+
+    resolved = 0
+    failed: list[str] = []
+    for domain in ctx.threat.c2.domains:
+        try:
+            live_ip = socket.gethostbyname(domain)
+        except socket.gaierror:
+            logger.debug("Cannot resolve C2 domain %s", domain)
+            failed.append(domain)
+            continue
+        ips = result.setdefault(domain, [])
+        if live_ip not in ips:
+            ips.append(live_ip)
+        resolved += 1
+
+    total = len(ctx.threat.c2.domains)
+    print(f"  Resolved {resolved}/{total} C2 domain(s) via DNS")
+    if failed:
+        preview = ", ".join(failed[:3])
+        suffix = f" (+{len(failed) - 3} more)" if len(failed) > 3 else ""
+        print(
+            f"  {YELLOW}{BOLD}NOTE:{RESET} {len(failed)} domain(s) failed to "
+            f"resolve: {preview}{suffix} — coverage incomplete"
+        )
     return result
 
 

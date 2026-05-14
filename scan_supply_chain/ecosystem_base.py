@@ -39,8 +39,15 @@ class EcosystemPlugin(Protocol):
         """Regex matching a metadata directory name for the given package."""
         ...
 
-    def extract_version(self, metadata_path: Path) -> str | None:
-        """Extract the package version from a metadata directory or file."""
+    def extract_version(self, metadata_path: Path, skip_report) -> str | None:
+        """Extract the package version from a metadata directory or file.
+
+        ``skip_report`` receives any permission / read errors so the
+        operator sees in the post-scan summary which install directories
+        could not be inspected. JSON / METADATA parse errors are not
+        skip-worthy (they indicate content issues, not access) and are
+        logged at debug only.
+        """
         ...
 
     def import_patterns(self, package: str) -> list[re.Pattern]:
