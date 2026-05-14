@@ -264,6 +264,7 @@ def _indicator_count(indicators) -> int:
         len(indicators.workflow_filenames)
         + len(indicators.workflow_name_regexes)
         + len(indicators.branch_names)
+        + len(indicators.branch_name_regexes)
         + len(indicators.commit_author_emails)
         + len(indicators.repo_descriptions)
     )

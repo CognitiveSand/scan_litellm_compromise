@@ -175,6 +175,7 @@ terms = []
 workflow_filenames    = []
 workflow_name_regexes = []
 branch_names          = []
+branch_name_regexes   = []
 commit_author_emails  = []
 repo_descriptions     = []
 

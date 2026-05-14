@@ -104,10 +104,8 @@ schtask_keywords  = ["sha1hulud", "shai-hulud"]
 terms = ["gh-token-monitor", "sha1hulud", "shai-hulud", "SHA1HULUD"]
 
 # ── IOC: Git artifacts (anti-worm pre-pass) ─────────────────────
-# Note: the 2.0-specific branch pattern is `add-linter-workflow-<ms>`,
-# which would need branch_name_regexes (not yet supported in the
-# schema). Until that lands, the Dune branch set still catches the
-# campaign because the worm reuses it.
+# The 2.0-specific dead-drop branch pattern is `add-linter-workflow-<ms>`,
+# where <ms> is the millisecond-precision Date.now() at publish time.
 [ioc.git_artifacts]
 workflow_filenames    = [
     "shai-hulud-workflow.yml",
@@ -115,6 +113,7 @@ workflow_filenames    = [
     "discussion.yaml",
 ]
 workflow_name_regexes = ['^formatter_\d+\.ya?ml$']
+branch_name_regexes   = ['^add-linter-workflow-\d+$']
 branch_names = [
     "atreides",
     "cogitor",

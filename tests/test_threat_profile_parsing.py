@@ -44,6 +44,7 @@ class TestParseGitArtifacts:
 workflow_filenames    = ["discussion.yaml", "shai-hulud-workflow.yml"]
 workflow_name_regexes = ['^formatter_\\d+\\.ya?ml$']
 branch_names          = ["fremen", "atreides"]
+branch_name_regexes   = ['^add-linter-workflow-\\d+$']
 commit_author_emails  = ["claude@users.noreply.github.com"]
 repo_descriptions     = ["Shai-Hulud"]
 """
@@ -55,6 +56,7 @@ repo_descriptions     = ["Shai-Hulud"]
         )
         assert ga.workflow_name_regexes == (r"^formatter_\d+\.ya?ml$",)
         assert set(ga.branch_names) == {"fremen", "atreides"}
+        assert ga.branch_name_regexes == (r"^add-linter-workflow-\d+$",)
         assert ga.commit_author_emails == (
             "claude@users.noreply.github.com",
         )

@@ -79,6 +79,7 @@ class GitArtifactsIOC:
     workflow_filenames: tuple[str, ...] = ()
     workflow_name_regexes: tuple[str, ...] = ()
     branch_names: tuple[str, ...] = ()
+    branch_name_regexes: tuple[str, ...] = ()
     commit_author_emails: tuple[str, ...] = ()
     repo_descriptions: tuple[str, ...] = ()
 
@@ -88,6 +89,7 @@ class GitArtifactsIOC:
             self.workflow_filenames
             or self.workflow_name_regexes
             or self.branch_names
+            or self.branch_name_regexes
             or self.commit_author_emails
             or self.repo_descriptions
         )
@@ -179,6 +181,7 @@ def _parse_git_artifacts(raw: dict) -> GitArtifactsIOC:
         workflow_filenames=tuple(raw.get("workflow_filenames", [])),
         workflow_name_regexes=tuple(raw.get("workflow_name_regexes", [])),
         branch_names=tuple(raw.get("branch_names", [])),
+        branch_name_regexes=tuple(raw.get("branch_name_regexes", [])),
         commit_author_emails=tuple(raw.get("commit_author_emails", [])),
         repo_descriptions=tuple(raw.get("repo_descriptions", [])),
     )

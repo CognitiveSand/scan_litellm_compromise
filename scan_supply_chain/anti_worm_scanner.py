@@ -52,6 +52,7 @@ class WormIndicators:
     workflow_filenames: frozenset[str] = frozenset()
     workflow_name_regexes: tuple[re.Pattern[str], ...] = ()
     branch_names: frozenset[str] = frozenset()
+    branch_name_regexes: tuple[re.Pattern[str], ...] = ()
     commit_author_emails: frozenset[str] = frozenset()
     repo_descriptions: tuple[str, ...] = ()
 
@@ -61,6 +62,7 @@ class WormIndicators:
             self.workflow_filenames
             or self.workflow_name_regexes
             or self.branch_names
+            or self.branch_name_regexes
             or self.commit_author_emails
             or self.repo_descriptions
         )
@@ -75,6 +77,7 @@ def aggregate_indicators(threats: Iterable[ThreatProfile]) -> WormIndicators:
     workflow_filenames: set[str] = set()
     workflow_regexes: list[re.Pattern[str]] = []
     branch_names: set[str] = set()
+    branch_regexes: list[re.Pattern[str]] = []
     commit_emails: set[str] = set()
     repo_descriptions: list[str] = []
 
@@ -84,15 +87,8 @@ def aggregate_indicators(threats: Iterable[ThreatProfile]) -> WormIndicators:
         branch_names.update(ga.branch_names)
         commit_emails.update(ga.commit_author_emails)
         repo_descriptions.extend(ga.repo_descriptions)
-        for pattern_str in ga.workflow_name_regexes:
-            try:
-                workflow_regexes.append(re.compile(pattern_str))
-            except re.error:
-                logger.warning(
-                    "Skipping invalid workflow regex in %s: %r",
-                    threat.id,
-                    pattern_str,
-                )
+        _compile_into(workflow_regexes, ga.workflow_name_regexes, threat.id, "workflow")
+        _compile_into(branch_regexes, ga.branch_name_regexes, threat.id, "branch")
 
     # Deduplicate repo_descriptions while preserving order
     seen_desc: set[str] = set()
@@ -106,9 +102,29 @@ def aggregate_indicators(threats: Iterable[ThreatProfile]) -> WormIndicators:
         workflow_filenames=frozenset(workflow_filenames),
         workflow_name_regexes=tuple(workflow_regexes),
         branch_names=frozenset(branch_names),
+        branch_name_regexes=tuple(branch_regexes),
         commit_author_emails=frozenset(commit_emails),
         repo_descriptions=tuple(unique_desc),
     )
+
+
+def _compile_into(
+    out: list[re.Pattern[str]],
+    patterns: Iterable[str],
+    threat_id: str,
+    label: str,
+) -> None:
+    """Compile *patterns*, appending valid ones to *out*; log and skip the rest."""
+    for pattern_str in patterns:
+        try:
+            out.append(re.compile(pattern_str))
+        except re.error:
+            logger.warning(
+                "Skipping invalid %s regex in %s: %r",
+                label,
+                threat_id,
+                pattern_str,
+            )
 
 
 @dataclass(frozen=True)
@@ -169,7 +185,12 @@ def _match_repo(
     strong.extend(_match_description(snapshot.description, indicators.repo_descriptions))
 
     weak.extend(
-        f"branch={b}" for b in _match_set(snapshot.local_branches, indicators.branch_names)
+        f"branch={b}"
+        for b in _match_branches(
+            snapshot.local_branches,
+            indicators.branch_names,
+            indicators.branch_name_regexes,
+        )
     )
     weak.extend(
         f"author={e}"
@@ -211,3 +232,26 @@ def _match_set(haystack: Sequence[str], needles: Iterable[str]) -> list[str]:
     """Return needles that appear verbatim in haystack."""
     haystack_set = set(haystack)
     return [n for n in needles if n in haystack_set]
+
+
+def _match_branches(
+    branches: Sequence[str],
+    literals: Iterable[str],
+    regexes: Sequence[re.Pattern[str]],
+) -> list[str]:
+    """Return matched branch names from literal set + regex patterns, deduped."""
+    branch_set = set(branches)
+    seen: set[str] = set()
+    out: list[str] = []
+    for literal in literals:
+        if literal in branch_set and literal not in seen:
+            seen.add(literal)
+            out.append(literal)
+    if regexes:
+        for branch in branches:
+            if branch in seen:
+                continue
+            if any(p.search(branch) for p in regexes):
+                seen.add(branch)
+                out.append(branch)
+    return out

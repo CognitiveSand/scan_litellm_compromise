@@ -151,6 +151,42 @@ class TestWeakSignals:
         assert results.findings[0].weight == LOW
         assert "fremen" in results.findings[0].description
 
+    def test_branch_name_regex_match_is_low_alone(self):
+        results = ScanResults()
+        scan_anti_worm(
+            results,
+            WormIndicators(
+                branch_name_regexes=(
+                    re.compile(r"^add-linter-workflow-\d+$"),
+                ),
+            ),
+            [
+                _snapshot(
+                    local_branches=(
+                        "main",
+                        "add-linter-workflow-1732456789012",
+                    )
+                )
+            ],
+        )
+        assert len(results.findings) == 1
+        f = results.findings[0]
+        assert f.weight == LOW
+        assert "add-linter-workflow-1732456789012" in f.description
+
+    def test_branch_regex_dedupes_with_literal(self):
+        """A branch matched by both a literal and a regex emits one finding."""
+        results = ScanResults()
+        scan_anti_worm(
+            results,
+            WormIndicators(
+                branch_names=frozenset({"fremen"}),
+                branch_name_regexes=(re.compile(r"^fr"),),
+            ),
+            [_snapshot(local_branches=("fremen",))],
+        )
+        assert len(results.findings) == 1
+
     def test_author_email_alone_is_low(self):
         results = ScanResults()
         scan_anti_worm(
@@ -331,3 +367,25 @@ class TestAggregateIndicators:
         # Only the valid pattern survives.
         assert len(result.workflow_name_regexes) == 1
         assert result.workflow_name_regexes[0].search("ok")
+
+    def test_compiles_branch_regexes(self):
+        threat = make_axios_threat(
+            git_artifacts=GitArtifactsIOC(
+                branch_name_regexes=(r"^add-linter-workflow-\d+$",),
+            ),
+        )
+        result = aggregate_indicators([threat])
+        assert len(result.branch_name_regexes) == 1
+        assert result.branch_name_regexes[0].search(
+            "add-linter-workflow-1732456789012"
+        )
+
+    def test_invalid_branch_regex_is_skipped(self):
+        threat = make_axios_threat(
+            git_artifacts=GitArtifactsIOC(
+                branch_name_regexes=(r"[unclosed", r"^fremen-\d+$"),
+            ),
+        )
+        result = aggregate_indicators([threat])
+        assert len(result.branch_name_regexes) == 1
+        assert result.branch_name_regexes[0].search("fremen-42")
