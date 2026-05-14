@@ -150,8 +150,59 @@ class ThreatProfile:
 
 # ── TOML parsing ────────────────────────────────────────────────────────
 
+# Known-key schemas — every section's expected keys are listed here.
+# An unknown key (typically a typo like ``ecosytem``) raises
+# ``UnknownProfileKeyError`` at parse time so the operator sees the bad
+# field rather than silently losing the value to a default.
+_TOP_LEVEL_KEYS: frozenset[str] = frozenset({"threat", "c2", "ioc", "remediation"})
+_THREAT_KEYS: frozenset[str] = frozenset({
+    "id", "name", "date", "ecosystem", "package",
+    "compromised", "safe", "advisory", "description",
+})
+_C2_KEYS: frozenset[str] = frozenset({"domains", "ports", "ips"})
+_IOC_KEYS: frozenset[str] = frozenset({
+    "walk_files", "known_paths", "phantom_deps", "kubernetes",
+    "windows", "persistence_keywords", "git_artifacts",
+})
+_WALK_FILE_KEYS: frozenset[str] = frozenset({"description", "filenames", "sha256"})
+_KNOWN_PATH_KEYS: frozenset[str] = frozenset({
+    "description", "linux", "darwin", "windows",
+})
+_PHANTOM_DEPS_KEYS: frozenset[str] = frozenset({"names"})
+_KUBERNETES_KEYS: frozenset[str] = frozenset({"pod_patterns", "namespace"})
+_WINDOWS_KEYS: frozenset[str] = frozenset({"registry_keywords", "schtask_keywords"})
+_PERSISTENCE_KEYWORDS_KEYS: frozenset[str] = frozenset({"terms"})
+_GIT_ARTIFACTS_KEYS: frozenset[str] = frozenset({
+    "workflow_filenames", "workflow_name_regexes",
+    "branch_names", "branch_name_regexes",
+    "commit_author_emails", "repo_descriptions",
+})
+_REMEDIATION_KEYS: frozenset[str] = frozenset({
+    "rotate_secrets", "install_command",
+    "remove_artifacts", "check_persistence",
+})
+_PLATFORM_KEYS: frozenset[str] = frozenset({"linux", "darwin", "windows"})
+
+
+class UnknownProfileKeyError(ValueError):
+    """A threat-profile section contains a key not in the documented schema.
+
+    Almost always a typo (e.g. ``ecosytem`` instead of ``ecosystem``).
+    Raised at parse time so the value is not silently lost to a default.
+    """
+
+
+def _check_keys(section_label: str, raw: dict, known: frozenset[str]) -> None:
+    extra = set(raw) - known
+    if extra:
+        raise UnknownProfileKeyError(
+            f"unknown key(s) in [{section_label}]: {sorted(extra)} "
+            f"(expected one of: {sorted(known)})"
+        )
+
 
 def _parse_c2(raw: dict) -> C2Info:
+    _check_keys("c2", raw, _C2_KEYS)
     return C2Info(
         domains=raw.get("domains", []),
         ports=raw.get("ports", []),
@@ -160,26 +211,32 @@ def _parse_c2(raw: dict) -> C2Info:
 
 
 def _parse_walk_files(raw_list: list[dict]) -> list[WalkFileIOC]:
-    return [
-        WalkFileIOC(
-            description=item.get("description", ""),
-            filenames=item.get("filenames", []),
-            sha256=item.get("sha256", []),
+    profiles: list[WalkFileIOC] = []
+    for item in raw_list:
+        _check_keys("ioc.walk_files", item, _WALK_FILE_KEYS)
+        profiles.append(
+            WalkFileIOC(
+                description=item.get("description", ""),
+                filenames=item.get("filenames", []),
+                sha256=item.get("sha256", []),
+            )
         )
-        for item in raw_list
-    ]
+    return profiles
 
 
 def _parse_known_paths(raw_list: list[dict]) -> list[KnownPathIOC]:
-    return [
-        KnownPathIOC(
-            description=item.get("description", ""),
-            linux=item.get("linux", []),
-            darwin=item.get("darwin", []),
-            windows=item.get("windows", []),
+    profiles: list[KnownPathIOC] = []
+    for item in raw_list:
+        _check_keys("ioc.known_paths", item, _KNOWN_PATH_KEYS)
+        profiles.append(
+            KnownPathIOC(
+                description=item.get("description", ""),
+                linux=item.get("linux", []),
+                darwin=item.get("darwin", []),
+                windows=item.get("windows", []),
+            )
         )
-        for item in raw_list
-    ]
+    return profiles
 
 
 def _compile_patterns(raw: list[str], field_name: str) -> tuple[re.Pattern[str], ...]:
@@ -201,6 +258,7 @@ def _compile_patterns(raw: list[str], field_name: str) -> tuple[re.Pattern[str],
 
 
 def _parse_git_artifacts(raw: dict) -> GitArtifactsIOC:
+    _check_keys("ioc.git_artifacts", raw, _GIT_ARTIFACTS_KEYS)
     return GitArtifactsIOC(
         workflow_filenames=tuple(raw.get("workflow_filenames", [])),
         workflow_name_regexes=_compile_patterns(
@@ -218,18 +276,52 @@ def _parse_git_artifacts(raw: dict) -> GitArtifactsIOC:
 
 
 def _parse_remediation(raw: dict) -> RemediationInfo:
+    _check_keys("remediation", raw, _REMEDIATION_KEYS)
+    remove_artifacts = raw.get("remove_artifacts", {})
+    _check_keys("remediation.remove_artifacts", remove_artifacts, _PLATFORM_KEYS)
+    check_persistence = raw.get("check_persistence", {})
+    _check_keys("remediation.check_persistence", check_persistence, _PLATFORM_KEYS)
     return RemediationInfo(
         rotate_secrets=raw.get("rotate_secrets", True),
         install_command=raw.get("install_command", ""),
-        remove_artifacts=raw.get("remove_artifacts", {}),
-        check_persistence=raw.get("check_persistence", {}),
+        remove_artifacts=remove_artifacts,
+        check_persistence=check_persistence,
     )
+
+
+def _parse_kubernetes(raw: dict) -> KubernetesIOC:
+    _check_keys("ioc.kubernetes", raw, _KUBERNETES_KEYS)
+    return KubernetesIOC(
+        pod_patterns=raw.get("pod_patterns", []),
+        namespace=raw.get("namespace", ""),
+    )
+
+
+def _parse_windows_ioc(raw: dict) -> WindowsIOC:
+    _check_keys("ioc.windows", raw, _WINDOWS_KEYS)
+    return WindowsIOC(
+        registry_keywords=raw.get("registry_keywords", []),
+        schtask_keywords=raw.get("schtask_keywords", []),
+    )
+
+
+def _parse_phantom_deps(raw: dict) -> list[str]:
+    _check_keys("ioc.phantom_deps", raw, _PHANTOM_DEPS_KEYS)
+    return raw.get("names", [])
+
+
+def _parse_persistence_keywords(raw: dict) -> tuple[str, ...]:
+    _check_keys("ioc.persistence_keywords", raw, _PERSISTENCE_KEYWORDS_KEYS)
+    return tuple(raw.get("terms", []))
 
 
 def _parse_profile(data: dict) -> ThreatProfile:
     """Parse a raw TOML dict into a ThreatProfile."""
+    _check_keys("<root>", data, _TOP_LEVEL_KEYS)
     threat = data.get("threat", {})
+    _check_keys("threat", threat, _THREAT_KEYS)
     ioc = data.get("ioc", {})
+    _check_keys("ioc", ioc, _IOC_KEYS)
 
     return ThreatProfile(
         id=threat["id"],
@@ -244,17 +336,11 @@ def _parse_profile(data: dict) -> ThreatProfile:
         c2=_parse_c2(data.get("c2", {})),
         walk_files=_parse_walk_files(ioc.get("walk_files", [])),
         known_paths=_parse_known_paths(ioc.get("known_paths", [])),
-        phantom_deps=ioc.get("phantom_deps", {}).get("names", []),
-        kubernetes=KubernetesIOC(
-            pod_patterns=ioc.get("kubernetes", {}).get("pod_patterns", []),
-            namespace=ioc.get("kubernetes", {}).get("namespace", ""),
-        ),
-        windows_ioc=WindowsIOC(
-            registry_keywords=ioc.get("windows", {}).get("registry_keywords", []),
-            schtask_keywords=ioc.get("windows", {}).get("schtask_keywords", []),
-        ),
-        persistence_keywords=tuple(
-            ioc.get("persistence_keywords", {}).get("terms", [])
+        phantom_deps=_parse_phantom_deps(ioc.get("phantom_deps", {})),
+        kubernetes=_parse_kubernetes(ioc.get("kubernetes", {})),
+        windows_ioc=_parse_windows_ioc(ioc.get("windows", {})),
+        persistence_keywords=_parse_persistence_keywords(
+            ioc.get("persistence_keywords", {})
         ),
         git_artifacts=_parse_git_artifacts(ioc.get("git_artifacts", {})),
         remediation=_parse_remediation(data.get("remediation", {})),
@@ -297,7 +383,12 @@ def _load_from_dir(directory: Path) -> dict[str, ThreatProfile]:
     for toml_path in sorted(directory.glob("*.toml")):
         try:
             profile = load_threat_file(toml_path)
-        except (KeyError, tomllib.TOMLDecodeError, re.error) as exc:
+        except (
+            KeyError,
+            tomllib.TOMLDecodeError,
+            re.error,
+            UnknownProfileKeyError,
+        ) as exc:
             raise InvalidThreatProfileError(toml_path, exc) from exc
         profiles[profile.id] = profile
     return profiles

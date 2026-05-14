@@ -27,6 +27,21 @@ firefox 16377 user  210u  IPv4 123456      0t0  TCP 192.168.10.103:57954->172.66
 python3 99999 user   12u  IPv4 789012      0t0  TCP 192.168.10.103:56006->142.11.206.73:8000 (ESTABLISHED)
 """
 
+# IPv6 peers — ``ss -tnp`` and ``lsof -i -P -n`` wrap the address in
+# square brackets to disambiguate the colon-separated port. The threat
+# profile's c2.ips list holds bare IPs, so the parser must strip the
+# brackets before emitting the peer_ip.
+SS_IPV6_SAMPLE = """\
+State    Recv-Q Send-Q       Local Address:Port    Peer Address:Port Process
+ESTAB    0      0      [2001:db8::a]:57954    [2001:db8::1]:443   users:(("firefox",pid=16377,fd=210))
+ESTAB    0      0      [2001:db8::a]:56006    [2001:db8::2]:8000  users:(("python3",pid=99999,fd=12))
+"""
+
+LSOF_IPV6_SAMPLE = """\
+COMMAND   PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+python3 99999 user   12u  IPv6 789012      0t0  TCP [2001:db8::a]:56006->[2001:db8::2]:8000 (ESTABLISHED)
+"""
+
 
 class TestParseSsOutput:
     def test_parses_connections(self):
@@ -56,6 +71,16 @@ class TestParseSsOutput:
         # @req FR-39
         assert parse_ss_output("State Recv-Q Send-Q ...\n") == []
 
+    def test_strips_brackets_from_ipv6_peer(self):
+        # @req FR-39
+        # Bare ``rpartition(":")`` would leave the closing bracket in
+        # peer_ip, silently missing every IPv6 C2 address.
+        records = parse_ss_output(SS_IPV6_SAMPLE)
+        assert len(records) == 2
+        c2 = [r for r in records if r.peer_port == 8000]
+        assert len(c2) == 1
+        assert c2[0].peer_ip == "2001:db8::2"
+
 
 class TestParseLsofOutput:
     def test_parses_connections(self):
@@ -70,6 +95,13 @@ class TestParseLsofOutput:
         assert c2.peer_port == 8000
         assert c2.process_name == "python3"
         assert c2.pid == 99999
+
+    def test_strips_brackets_from_ipv6_peer(self):
+        # @req FR-39
+        records = parse_lsof_output(LSOF_IPV6_SAMPLE)
+        assert len(records) == 1
+        assert records[0].peer_ip == "2001:db8::2"
+        assert records[0].peer_port == 8000
 
 
 class TestFindC2Connections:
