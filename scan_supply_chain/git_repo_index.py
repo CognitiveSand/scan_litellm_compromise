@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .config import GIT_REPO_WALK_SKIP_DIRS
+from .skip_report import note_permission_error, note_read_error
 from .subprocess_utils import run_safe
 
 logger = logging.getLogger(__name__)
@@ -74,14 +75,24 @@ def _find_repo_roots(roots: Iterable[str]) -> Iterator[Path]:
     """Yield the parent directory of each ``.git`` directory found.
 
     Does not descend into ``.git/`` itself. Prunes heavy/uninteresting
-    sibling trees per ``GIT_REPO_WALK_SKIP_DIRS``.
+    sibling trees per ``GIT_REPO_WALK_SKIP_DIRS``. Per-subdirectory
+    permission errors are routed through ``onerror`` into the
+    skip-report so the post-scan summary reflects them.
     """
+
+    def _on_error(exc: OSError) -> None:
+        path = Path(exc.filename) if exc.filename else Path("<unknown>")
+        if isinstance(exc, PermissionError):
+            note_permission_error(path)
+        else:
+            note_read_error(path, type(exc).__name__)
+
     for raw in roots:
         root_path = Path(raw)
         if not root_path.is_dir():
             continue
         try:
-            for dirpath, dirnames, _ in os.walk(root_path):
+            for dirpath, dirnames, _ in os.walk(root_path, onerror=_on_error):
                 dirnames[:] = [d for d in dirnames if d not in GIT_REPO_WALK_SKIP_DIRS]
                 if ".git" in dirnames:
                     yield Path(dirpath)
@@ -91,7 +102,7 @@ def _find_repo_roots(roots: Iterable[str]) -> Iterator[Path]:
                     # per outer repo is enough for the anti-worm scan.
                     dirnames.remove(".git")
         except PermissionError:
-            logger.debug("Permission denied walking %s", root_path)
+            note_permission_error(root_path)
 
 
 # ── Per-repo snapshot ───────────────────────────────────────────────────
@@ -113,7 +124,14 @@ def _read_description(git_dir: Path) -> str:
     desc_path = git_dir / "description"
     try:
         return desc_path.read_text(errors="ignore").strip()
-    except (FileNotFoundError, PermissionError, OSError):
+    except FileNotFoundError:
+        # Missing description file is normal — don't record.
+        return ""
+    except PermissionError:
+        note_permission_error(desc_path)
+        return ""
+    except OSError as exc:
+        note_read_error(desc_path, type(exc).__name__)
         return ""
 
 
@@ -125,8 +143,10 @@ def _read_local_branches(git_dir: Path) -> Iterator[str]:
             for entry in heads_dir.rglob("*"):
                 if entry.is_file():
                     yield entry.relative_to(heads_dir).as_posix()
-        except (PermissionError, OSError):
-            logger.debug("Cannot read %s", heads_dir)
+        except PermissionError:
+            note_permission_error(heads_dir)
+        except OSError as exc:
+            note_read_error(heads_dir, type(exc).__name__)
 
     packed = git_dir / "packed-refs"
     if packed.is_file():
@@ -141,8 +161,10 @@ def _read_local_branches(git_dir: Path) -> Iterator[str]:
                 prefix = "refs/heads/"
                 if ref.startswith(prefix):
                     yield ref[len(prefix):]
-        except (PermissionError, OSError):
-            logger.debug("Cannot read %s", packed)
+        except PermissionError:
+            note_permission_error(packed)
+        except OSError as exc:
+            note_read_error(packed, type(exc).__name__)
 
 
 def _list_workflow_files(repo_root: Path) -> Iterator[Path]:
@@ -154,8 +176,10 @@ def _list_workflow_files(repo_root: Path) -> Iterator[Path]:
         for entry in workflows.iterdir():
             if entry.is_file() and entry.suffix in _WORKFLOW_SUFFIXES:
                 yield entry
-    except (PermissionError, OSError):
-        logger.debug("Cannot read %s", workflows)
+    except PermissionError:
+        note_permission_error(workflows)
+    except OSError as exc:
+        note_read_error(workflows, type(exc).__name__)
 
 
 def _read_recent_emails(repo_root: Path, git_available: bool) -> Iterator[str]:

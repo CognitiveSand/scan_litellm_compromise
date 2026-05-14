@@ -12,6 +12,8 @@ import os
 from collections.abc import Generator
 from pathlib import Path
 
+from .skip_report import note_permission_error, note_read_error
+
 logger = logging.getLogger(__name__)
 
 # Directories always skipped during any filesystem walk
@@ -59,8 +61,11 @@ def read_if_contains(path: Path, keyword: str) -> str | None:
         return None
     try:
         text = path.read_text(errors="ignore")
-    except (PermissionError, OSError):
-        logger.debug("Cannot read %s", path)
+    except PermissionError:
+        note_permission_error(path)
+        return None
+    except OSError as exc:
+        note_read_error(path, type(exc).__name__)
         return None
     return text if keyword in text else None
 
@@ -68,10 +73,24 @@ def read_if_contains(path: Path, keyword: str) -> str | None:
 def pruned_walk(
     root: Path, skip_dirs: frozenset[str]
 ) -> Generator[tuple[str, list[str], list[str]], None, None]:
-    """os.walk with directory pruning and PermissionError handling."""
+    """os.walk with directory pruning and skip-report instrumentation.
+
+    Per-directory ``OSError``s (typically ``PermissionError`` on
+    inaccessible sub-trees) are routed through the ``onerror`` callback
+    so each one is recorded individually — by default ``os.walk``
+    silently drops them.
+    """
+
+    def _on_error(exc: OSError) -> None:
+        path = Path(exc.filename) if exc.filename else root
+        if isinstance(exc, PermissionError):
+            note_permission_error(path)
+        else:
+            note_read_error(path, type(exc).__name__)
+
     try:
-        for dirpath, dirnames, filenames in os.walk(root):
+        for dirpath, dirnames, filenames in os.walk(root, onerror=_on_error):
             dirnames[:] = [d for d in dirnames if d not in skip_dirs]
             yield dirpath, dirnames, filenames
     except PermissionError:
-        logger.debug("Permission denied walking %s", root)
+        note_permission_error(root)

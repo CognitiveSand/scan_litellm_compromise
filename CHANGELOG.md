@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- **Per-scan skip summary.** New `skip_report.py` module with a `SkipReport` singleton that the walk / read helpers append to whenever they swallow a `PermissionError` or `OSError`. Instrumented sites: `config.pruned_walk` (with `onerror` callback so depth-N denials are caught, not just the top-level root), `config.read_if_contains`, `git_repo_index._find_repo_roots` and its targeted file readers, `persistence_scanner` (config-dir, shell-rc, /tmp iteration), and `ioc_scanner` (known-paths exists check + walk-files hash-read). A new `print_skip_summary` block at the end of the report tells the operator how many paths were not inspected and shows the first few of each category, so a partial scan from missing privileges is no longer indistinguishable from a clean scan. Silent when no paths were skipped. Test isolation handled by an autouse fixture in `tests/conftest.py` that resets the singleton between tests.
+
 ### Changed
 - **Fail loud on malformed threat profiles.** `_load_from_dir` no longer swallows `KeyError` / `tomllib.TOMLDecodeError` / `re.error` from individual profiles. Any broken TOML — missing required field, syntax error, or invalid regex — now raises `InvalidThreatProfileError` with the offending file path and stops the scan. A user who wrote a profile expects it to be active; silently logging at WARNING and continuing was the kind of stealth-failure mode that §8 (Fail Fast, Fail Loud) explicitly warns against.
 - **Regex compilation moved from scan time to load time.** `GitArtifactsIOC.workflow_name_regexes` and `branch_name_regexes` are now `tuple[re.Pattern[str], ...]` (was `tuple[str, ...]`). `_parse_git_artifacts` compiles each pattern; a malformed pattern raises `re.error` with the field name and the offending pattern. The `aggregate_indicators` function no longer needs `_compile_into` or any exception handling — patterns are pre-validated.

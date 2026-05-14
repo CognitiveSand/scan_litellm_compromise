@@ -310,6 +310,21 @@ def fake_home(tmp_path, monkeypatch):
     return tmp_path
 
 
+@pytest.fixture(autouse=True)
+def _reset_skip_report():
+    """Reset the per-scan skip-report singleton before every test.
+
+    The skip-report accumulates filesystem permission / read errors
+    encountered by the walker and reader helpers. Tests that don't
+    care must not see leakage from earlier tests.
+    """
+    from scan_supply_chain.skip_report import reset_current_report
+
+    reset_current_report()
+    yield
+    reset_current_report()
+
+
 @pytest.fixture
 def tmp_as_tmp(tmp_path):
     """Make /tmp point to tmp_path for persistence scanner tests."""

@@ -26,9 +26,11 @@ from .report import (
     print_anti_worm_report,
     print_config_refs,
     print_multi_threat_summary,
+    print_skip_summary,
     print_source_refs,
 )
 from .search_roots import build_search_roots, deduplicate_roots
+from .skip_report import get_current_report, reset_current_report
 from .source_scanner import scan_source_and_configs
 from .threat_profile import (
     ThreatProfile,
@@ -183,6 +185,9 @@ def main():
         print("No threat profiles found. Nothing to scan.")
         sys.exit(0)
 
+    # Fresh skip-report for this scan — instrumented helpers append to it.
+    reset_current_report()
+
     policy = detect_platform()
 
     print_banner(__version__)
@@ -222,10 +227,12 @@ def main():
         )
         all_results.append((threat, results))
 
-    # Final combined report — anti-worm section first, then per-threat
+    # Final combined report — anti-worm section first, then per-threat,
+    # then the skip-report telling the operator what coverage was missed.
     print()
     print_anti_worm_report(anti_worm_results)
     print_multi_threat_summary(all_results)
+    print_skip_summary(get_current_report())
 
     any_compromised = any(not r.is_clean for _, r in all_results)
     any_worm_signals = not anti_worm_results.is_clean

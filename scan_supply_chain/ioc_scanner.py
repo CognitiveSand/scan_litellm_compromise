@@ -22,6 +22,7 @@ from .formatting import (
     print_ioc_found,
 )
 from .models import ScanResults
+from .skip_report import note_permission_error, note_read_error
 
 if TYPE_CHECKING:
     from .ecosystem_base import EcosystemPlugin
@@ -55,7 +56,7 @@ def _check_known_paths(
                 results.iocs.append(str(path))
                 found = True
         except PermissionError:
-            logger.debug("Permission denied checking %s", path)
+            note_permission_error(path)
     if not found:
         print_clean()
 
@@ -90,9 +91,14 @@ def _scan_walk_files(
                             digest = hashlib.sha256(file_path.read_bytes()).hexdigest()
                             if digest not in known_hashes:
                                 continue
-                        except (PermissionError, OSError):
-                            # Can't read — still report as suspicious
-                            pass
+                        except PermissionError:
+                            # Can't read — still report as suspicious,
+                            # but record the path for the post-scan
+                            # summary so the operator knows why no hash
+                            # comparison happened.
+                            note_permission_error(file_path)
+                        except OSError as exc:
+                            note_read_error(file_path, type(exc).__name__)
                     print_ioc_found(str(file_path))
                     results.iocs.append(str(file_path))
                     found = True

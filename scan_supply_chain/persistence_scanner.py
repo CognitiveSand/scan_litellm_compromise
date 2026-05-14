@@ -21,6 +21,7 @@ from pathlib import Path
 
 from .config import read_if_contains
 from .models import FindingCategory, ScanResults, scanner_check
+from .skip_report import note_permission_error, note_read_error
 from .subprocess_utils import run_safe
 
 logger = logging.getLogger(__name__)
@@ -96,8 +97,10 @@ def _check_config_dir(
                     str(config_file),
                     2,
                 )
-    except (PermissionError, OSError):
-        logger.debug("Cannot read %s", directory)
+    except PermissionError:
+        note_permission_error(directory)
+    except OSError as exc:
+        note_read_error(directory, type(exc).__name__)
 
 
 # ── Individual checkers ─────────────────────────────────────────────────
@@ -141,8 +144,10 @@ def _check_shell_rc(results: ScanResults, search_terms: Sequence[str]) -> None:
                         str(rc_path),
                         2,
                     )
-        except (PermissionError, OSError):
-            logger.debug("Cannot read %s", rc_path)
+        except PermissionError:
+            note_permission_error(rc_path)
+        except OSError as exc:
+            note_read_error(rc_path, type(exc).__name__)
 
 
 def _check_tmp_scripts(results: ScanResults, package: str) -> None:
@@ -162,8 +167,10 @@ def _check_tmp_scripts(results: ScanResults, package: str) -> None:
                 _check_tmp_python_file(results, f, package)
             elif f.suffix in (".sh", ".bash"):
                 _check_tmp_shell_file(results, f, package)
-    except (PermissionError, OSError):
-        logger.debug("Cannot read /tmp")
+    except PermissionError:
+        note_permission_error(tmp)
+    except OSError as exc:
+        note_read_error(tmp, type(exc).__name__)
 
 
 def _check_tmp_python_file(results: ScanResults, path: Path, package: str) -> None:
