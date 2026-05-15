@@ -13,6 +13,13 @@ import pytest
 from scan_supply_chain.config import pruned_walk, read_if_contains
 from scan_supply_chain.skip_report import SkipReport
 
+# POSIX permission bits don't bite on Windows (NTFS ACLs ignore chmod) or
+# under root (uid 0 bypasses the check). Either case makes the chmod-based
+# tests below vacuous, so skip them. Evaluated at import time, so guard the
+# geteuid lookup — it does not exist on Windows.
+_POSIX_PERMS_INEFFECTIVE = not hasattr(os, "geteuid") or os.geteuid() == 0
+_POSIX_PERMS_REASON = "POSIX permission bits ineffective (Windows or root)"
+
 
 # ── SkipReport dataclass ────────────────────────────────────────────────
 
