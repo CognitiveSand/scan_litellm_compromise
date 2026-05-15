@@ -46,7 +46,7 @@ RESET = _code("\033[0m")
 _SEPARATOR_WIDTH = 63
 
 
-def print_banner(version: str = ""):
+def print_banner(version: str = "") -> None:
     ver_str = f"v{version}" if version else ""
     title = f"Supply Chain Compromise Scanner {ver_str}".strip()
     # Pad title to fill the box (inner width = _SEPARATOR_WIDTH - 3)
@@ -60,21 +60,21 @@ def print_banner(version: str = ""):
     print(RESET)
 
 
-def print_separator():
+def print_separator() -> None:
     print(f"{CYAN}{'-' * _SEPARATOR_WIDTH}{RESET}")
 
 
-def print_phase_header(number: int, title: str):
+def print_phase_header(number: int, title: str) -> None:
     print(f"\n{BOLD}[Phase {number}] {title}{RESET}\n")
 
 
-def print_ioc_found(path: str):
+def print_ioc_found(path: str) -> None:
     print(f"  {RED}{BOLD}! FOUND IOC:{RESET} {path}")
 
 
-def print_clean(message: str = "None found"):
+def print_clean(message: str = "None found") -> None:
     print(f"  {GREEN}+ {message}{RESET}")
 
 
-def print_check_header(description: str):
+def print_check_header(description: str) -> None:
     print(f"  {BOLD}Checking for {description}...{RESET}")

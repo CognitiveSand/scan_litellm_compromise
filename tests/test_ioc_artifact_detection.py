@@ -3,6 +3,8 @@
 Module under test: scan_supply_chain.ioc_scanner
 """
 
+import pytest
+
 import socket
 import subprocess
 from pathlib import Path
@@ -15,10 +17,13 @@ from scan_supply_chain.ioc_scanner import (
     _scan_walk_files,
 )
 from scan_supply_chain.models import ScanResults
+from scan_supply_chain.skip_report import SkipReport
 from tests.conftest import (
+    StubEcosystem,
     StubPolicy,
     make_axios_threat,
     make_litellm_threat,
+    make_scan_context,
     mock_subprocess_run,
     mock_subprocess_timeout,
     mock_tool_available,
@@ -33,27 +38,33 @@ _SS_HDR = (
 
 
 class TestCheckKnownPaths:
-    def test_flags_existing_path_as_ioc(self, tmp_path, capsys):
+    def test_flags_existing_path_as_ioc(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-12
         ioc_file = tmp_path / "pglog"
         ioc_file.write_text("exfil data")
 
         results = ScanResults()
-        _check_known_paths("test artifacts", [ioc_file], results)
+        _check_known_paths("test artifacts", [ioc_file], results, SkipReport())
 
         assert len(results.iocs) == 1
         assert str(ioc_file) in results.iocs[0]
 
-    def test_reports_clean_when_no_paths_exist(self, tmp_path, capsys):
+    def test_reports_clean_when_no_paths_exist(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-12
         results = ScanResults()
-        _check_known_paths("test artifacts", [tmp_path / "nope"], results)
+        _check_known_paths("test artifacts", [tmp_path / "nope"], results, SkipReport())
 
         assert results.iocs == []
         captured = capsys.readouterr().out
         assert "None found" in captured
 
-    def test_flags_multiple_existing_iocs(self, tmp_path, capsys):
+    def test_flags_multiple_existing_iocs(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-12
         (tmp_path / "pglog").write_text("a")
         (tmp_path / ".pg_state").write_text("b")
@@ -63,19 +74,22 @@ class TestCheckKnownPaths:
             "test",
             [tmp_path / "pglog", tmp_path / ".pg_state"],
             results,
+            SkipReport(),
         )
 
         assert len(results.iocs) == 2
 
-    def test_handles_permission_error_on_path_check(self, monkeypatch, capsys):
+    def test_handles_permission_error_on_path_check(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-12 NFR-03
-        def exists_raises(self):
+        def exists_raises(self: Path) -> bool:
             raise PermissionError("denied")
 
         monkeypatch.setattr(Path, "exists", exists_raises)
 
         results = ScanResults()
-        _check_known_paths("test", [Path("/fake/path")], results)
+        _check_known_paths("test", [Path("/fake/path")], results, SkipReport())
 
         assert results.iocs == []
 
@@ -84,7 +98,9 @@ class TestCheckKnownPaths:
 
 
 class TestScanWalkFiles:
-    def test_finds_litellm_init_pth(self, tmp_path, capsys):
+    def test_finds_litellm_init_pth(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-11
         site_pkg = tmp_path / "lib" / "site-packages"
         site_pkg.mkdir(parents=True)
@@ -103,34 +119,45 @@ class TestScanWalkFiles:
             ],
         )
         results = ScanResults()
-        _scan_walk_files(results, threat, [str(tmp_path)])
+        ctx = make_scan_context(threat, StubEcosystem(), [str(tmp_path)])
+        _scan_walk_files(results, ctx)
 
         assert len(results.iocs) == 1
         assert "litellm_init.pth" in results.iocs[0]
 
-    def test_reports_clean_when_no_files_found(self, tmp_path, capsys):
+    def test_reports_clean_when_no_files_found(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-11
         (tmp_path / "lib" / "site-packages").mkdir(parents=True)
 
         threat = make_litellm_threat()
 
         results = ScanResults()
-        _scan_walk_files(results, threat, [str(tmp_path)])
+        ctx = make_scan_context(threat, StubEcosystem(), [str(tmp_path)])
+        _scan_walk_files(results, ctx)
 
         assert results.iocs == []
         captured = capsys.readouterr().out
         assert "None found" in captured
 
-    def test_skips_nonexistent_search_roots(self, capsys):
+    def test_skips_nonexistent_search_roots(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-11
         threat = make_litellm_threat()
 
         results = ScanResults()
-        _scan_walk_files(results, threat, ["/nonexistent/path/that/does/not/exist"])
+        ctx = make_scan_context(
+            threat, StubEcosystem(), ["/nonexistent/path/that/does/not/exist"]
+        )
+        _scan_walk_files(results, ctx)
 
         assert results.iocs == []
 
-    def test_skips_pycache_during_walk(self, tmp_path, capsys):
+    def test_skips_pycache_during_walk(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-11
         pycache = tmp_path / "__pycache__"
         pycache.mkdir()
@@ -149,11 +176,14 @@ class TestScanWalkFiles:
         )
 
         results = ScanResults()
-        _scan_walk_files(results, threat, [str(tmp_path)])
+        ctx = make_scan_context(threat, StubEcosystem(), [str(tmp_path)])
+        _scan_walk_files(results, ctx)
 
         assert results.iocs == []
 
-    def test_finds_ioc_in_site_packages(self, tmp_path, capsys):
+    def test_finds_ioc_in_site_packages(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-11
         sp = tmp_path / "lib" / "site-packages"
         sp.mkdir(parents=True)
@@ -172,11 +202,14 @@ class TestScanWalkFiles:
         )
 
         results = ScanResults()
-        _scan_walk_files(results, threat, [str(tmp_path)])
+        ctx = make_scan_context(threat, StubEcosystem(), [str(tmp_path)])
+        _scan_walk_files(results, ctx)
 
         assert len(results.iocs) == 1
 
-    def test_respects_explicit_roots(self, tmp_path, capsys):
+    def test_respects_explicit_roots(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-11 FR-13
         (tmp_path / "litellm_init.pth").write_text("import os")
 
@@ -193,7 +226,8 @@ class TestScanWalkFiles:
         )
 
         results = ScanResults()
-        _scan_walk_files(results, threat, [str(tmp_path)])
+        ctx = make_scan_context(threat, StubEcosystem(), [str(tmp_path)])
+        _scan_walk_files(results, ctx)
 
         assert len(results.iocs) == 1
 
@@ -202,30 +236,36 @@ class TestScanWalkFiles:
 
 
 class TestResolveC2Ips:
-    def test_returns_known_ips_when_dns_disabled(self):
+    def test_returns_known_ips_when_dns_disabled(self) -> None:
         # @req FR-14
         threat = make_litellm_threat()
-        result = _resolve_c2_ips(threat, resolve_dns=False)
+        ctx = make_scan_context(threat, StubEcosystem(), [], resolve_c2=False)
+        result = _resolve_c2_ips(ctx)
 
         for domain, known_ips in threat.c2.ips.items():
             assert domain in result
             for ip in known_ips:
                 assert ip in result[domain]
 
-    def test_does_not_call_dns_when_disabled(self, monkeypatch):
+    def test_does_not_call_dns_when_disabled(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # @req FR-14 NFR-05
-        dns_called = []
+        dns_called: list[str] = []
         monkeypatch.setattr(
             "scan_supply_chain.ioc_scanner.socket.gethostbyname",
-            lambda d: dns_called.append(d) or "1.2.3.4",
+            lambda d: dns_called.append(d) or "1.2.3.4",  # type: ignore[func-returns-value]
         )
 
         threat = make_litellm_threat()
-        _resolve_c2_ips(threat, resolve_dns=False)
+        ctx = make_scan_context(threat, StubEcosystem(), [], resolve_c2=False)
+        _resolve_c2_ips(ctx)
 
         assert dns_called == []
 
-    def test_adds_live_ip_when_dns_enabled(self, monkeypatch):
+    def test_adds_live_ip_when_dns_enabled(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # @req FR-16
         monkeypatch.setattr(
             "scan_supply_chain.ioc_scanner.socket.gethostbyname",
@@ -233,12 +273,15 @@ class TestResolveC2Ips:
         )
 
         threat = make_litellm_threat()
-        result = _resolve_c2_ips(threat, resolve_dns=True)
+        ctx = make_scan_context(threat, StubEcosystem(), [], resolve_c2=True)
+        result = _resolve_c2_ips(ctx)
 
         for domain in threat.c2.ips:
             assert "99.99.99.99" in result[domain]
 
-    def test_deduplicates_live_ip_matching_known(self, monkeypatch):
+    def test_deduplicates_live_ip_matching_known(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # @req FR-16
         threat = make_litellm_threat()
         first_domain = list(threat.c2.ips.keys())[0]
@@ -248,11 +291,14 @@ class TestResolveC2Ips:
             lambda d: known_ip,
         )
 
-        result = _resolve_c2_ips(threat, resolve_dns=True)
+        ctx = make_scan_context(threat, StubEcosystem(), [], resolve_c2=True)
+        result = _resolve_c2_ips(ctx)
 
         assert result[first_domain].count(known_ip) == 1
 
-    def test_handles_dns_failure_gracefully(self, monkeypatch):
+    def test_handles_dns_failure_gracefully(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # @req FR-16 NFR-03
         monkeypatch.setattr(
             "scan_supply_chain.ioc_scanner.socket.gethostbyname",
@@ -262,7 +308,8 @@ class TestResolveC2Ips:
         )
 
         threat = make_litellm_threat()
-        result = _resolve_c2_ips(threat, resolve_dns=True)
+        ctx = make_scan_context(threat, StubEcosystem(), [], resolve_c2=True)
+        result = _resolve_c2_ips(ctx)
 
         for domain, known_ips in threat.c2.ips.items():
             assert domain in result
@@ -274,7 +321,7 @@ class TestResolveC2Ips:
 
 
 class TestScanForC2Connections:
-    def _stub_ss(self, monkeypatch, data_line):
+    def _stub_ss(self, monkeypatch: pytest.MonkeyPatch, data_line: str) -> None:
         stdout_bytes = (_SS_HDR + data_line).encode()
         mock_tool_available(monkeypatch, "ioc_scanner", "ss")
         monkeypatch.setattr(
@@ -286,7 +333,9 @@ class TestScanForC2Connections:
             ),
         )
 
-    def test_flags_known_ip_without_dns(self, monkeypatch, capsys):
+    def test_flags_known_ip_without_dns(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-14
         threat = make_litellm_threat()
         known_ip = threat.c2.ips["models.litellm.cloud"][0]
@@ -299,12 +348,15 @@ class TestScanForC2Connections:
         policy.network_check_command = ["ss", "-tnp"]
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert len(results.iocs) >= 1
         assert any("connection:" in ioc and known_ip in ioc for ioc in results.iocs)
 
-    def test_reports_clean_when_no_c2_ips_in_output(self, monkeypatch, capsys):
+    def test_reports_clean_when_no_c2_ips_in_output(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-14
         self._stub_ss(
             monkeypatch,
@@ -316,16 +368,20 @@ class TestScanForC2Connections:
         policy.network_check_command = ["ss", "-tnp"]
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert results.iocs == []
         captured = capsys.readouterr().out
         assert "No suspicious connections" in captured
 
-    def test_skips_when_network_tool_unavailable(self, monkeypatch, capsys):
+    def test_skips_when_network_tool_unavailable(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-14 NFR-03
         monkeypatch.setattr(
-            "scan_supply_chain.ioc_scanner.shutil.which", lambda cmd: None,
+            "scan_supply_chain.ioc_scanner.shutil.which",
+            lambda cmd: None,
         )
 
         threat = make_litellm_threat()
@@ -333,22 +389,28 @@ class TestScanForC2Connections:
         policy.network_check_command = ["ss", "-tnp"]
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert results.iocs == []
 
-    def test_skips_when_no_network_command_configured(self, capsys):
+    def test_skips_when_no_network_command_configured(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-14
         threat = make_litellm_threat()
         policy = StubPolicy()
         policy.network_check_command = None
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert results.iocs == []
 
-    def test_handles_subprocess_timeout(self, monkeypatch, capsys):
+    def test_handles_subprocess_timeout(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-14 NFR-04
         mock_tool_available(monkeypatch, "ioc_scanner", "ss")
         mock_subprocess_timeout(monkeypatch, "ioc_scanner")
@@ -358,7 +420,8 @@ class TestScanForC2Connections:
         policy.network_check_command = ["ss", "-tnp"]
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert results.iocs == []
 
@@ -367,50 +430,64 @@ class TestScanForC2Connections:
 
 
 class TestScanForMaliciousPods:
-    def test_flags_node_setup_pods(self, monkeypatch, capsys):
+    def test_flags_node_setup_pods(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-19
         mock_tool_available(monkeypatch, "ioc_scanner", "kubectl")
         mock_subprocess_run(
-            monkeypatch, "ioc_scanner",
+            monkeypatch,
+            "ioc_scanner",
             "node-setup-abc123  1/1  Running  0  2h\nkube-proxy-xyz  1/1  Running  0  5d\n",
         )
 
         threat = make_litellm_threat()
         results = ScanResults()
-        _scan_for_malicious_pods(results, threat)
+        ctx = make_scan_context(threat, StubEcosystem(), [])
+        _scan_for_malicious_pods(results, ctx)
 
         assert len(results.iocs) == 1
         assert "k8s-pods:1" in results.iocs[0]
 
-    def test_reports_clean_when_no_suspicious_pods(self, monkeypatch, capsys):
+    def test_reports_clean_when_no_suspicious_pods(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-19
         mock_tool_available(monkeypatch, "ioc_scanner", "kubectl")
         mock_subprocess_run(
-            monkeypatch, "ioc_scanner",
+            monkeypatch,
+            "ioc_scanner",
             "kube-proxy-xyz  1/1  Running  0  5d\n",
         )
 
         threat = make_litellm_threat()
         results = ScanResults()
-        _scan_for_malicious_pods(results, threat)
+        ctx = make_scan_context(threat, StubEcosystem(), [])
+        _scan_for_malicious_pods(results, ctx)
 
         assert results.iocs == []
         captured = capsys.readouterr().out
         assert "No suspicious pods" in captured
 
-    def test_skips_when_kubectl_not_installed(self, monkeypatch, capsys):
+    def test_skips_when_kubectl_not_installed(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-19 NFR-03
         monkeypatch.setattr(
-            "scan_supply_chain.ioc_scanner.shutil.which", lambda cmd: None,
+            "scan_supply_chain.ioc_scanner.shutil.which",
+            lambda cmd: None,
         )
 
         threat = make_litellm_threat()
         results = ScanResults()
-        _scan_for_malicious_pods(results, threat)
+        ctx = make_scan_context(threat, StubEcosystem(), [])
+        _scan_for_malicious_pods(results, ctx)
 
         assert results.iocs == []
 
-    def test_skips_when_no_pod_patterns(self, monkeypatch, capsys):
+    def test_skips_when_no_pod_patterns(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-19
         threat = make_litellm_threat(
             kubernetes=__import__(
@@ -418,7 +495,8 @@ class TestScanForMaliciousPods:
             ).KubernetesIOC(),
         )
         results = ScanResults()
-        _scan_for_malicious_pods(results, threat)
+        ctx = make_scan_context(threat, StubEcosystem(), [])
+        _scan_for_malicious_pods(results, ctx)
         assert results.iocs == []
 
 
@@ -426,7 +504,9 @@ class TestScanForMaliciousPods:
 
 
 class TestC2StructuredDetection:
-    def test_c2_with_ports_detected(self, monkeypatch, capsys):
+    def test_c2_with_ports_detected(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-15 FR-39
         threat = make_axios_threat()
         known_ip = threat.c2.ips["sfrclak.com"][0]
@@ -449,13 +529,16 @@ class TestC2StructuredDetection:
         policy.network_check_command = ["ss", "-tnp"]
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert len(results.iocs) >= 1
         assert any("connection:" in ioc for ioc in results.iocs)
         assert len(results.findings) >= 1
 
-    def test_c2_with_ports_rejects_wrong_port(self, monkeypatch, capsys):
+    def test_c2_with_ports_rejects_wrong_port(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-15 FR-39
         threat = make_axios_threat()
         known_ip = threat.c2.ips["sfrclak.com"][0]
@@ -478,6 +561,7 @@ class TestC2StructuredDetection:
         policy.network_check_command = ["ss", "-tnp"]
 
         results = ScanResults()
-        _scan_for_c2_connections(results, threat, policy)
+        ctx = make_scan_context(threat, StubEcosystem(), [], policy=policy)
+        _scan_for_c2_connections(results, ctx)
 
         assert results.iocs == []

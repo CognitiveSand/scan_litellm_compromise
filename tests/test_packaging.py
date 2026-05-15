@@ -13,19 +13,19 @@ PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 
 
 class TestEntryPoints:
-    def test_primary_cli_entry_point_exists(self):
+    def test_primary_cli_entry_point_exists(self) -> None:
         # @req FR-33
         data = tomllib.loads(PYPROJECT.read_text())
         scripts = data["project"]["scripts"]
         assert "scan-supply-chain" in scripts
 
-    def test_backward_compat_alias_exists(self):
+    def test_backward_compat_alias_exists(self) -> None:
         # @req FR-33
         data = tomllib.loads(PYPROJECT.read_text())
         scripts = data["project"]["scripts"]
         assert "scan-litellm" in scripts
 
-    def test_both_point_to_same_entry(self):
+    def test_both_point_to_same_entry(self) -> None:
         # @req FR-33
         data = tomllib.loads(PYPROJECT.read_text())
         scripts = data["project"]["scripts"]
@@ -33,30 +33,30 @@ class TestEntryPoints:
 
 
 class TestEcosystemCache:
-    def test_pypi_returns_same_instance(self):
-        from scan_supply_chain.ecosystem_base import _ecosystem_cache, get_ecosystem
+    def test_pypi_returns_same_instance(self) -> None:
+        from scan_supply_chain.ecosystem_base import get_ecosystem
 
-        _ecosystem_cache.clear()
+        get_ecosystem.cache_clear()
         first = get_ecosystem("pypi")
         second = get_ecosystem("pypi")
         assert first is second
 
-    def test_npm_returns_same_instance(self):
-        from scan_supply_chain.ecosystem_base import _ecosystem_cache, get_ecosystem
+    def test_npm_returns_same_instance(self) -> None:
+        from scan_supply_chain.ecosystem_base import get_ecosystem
 
-        _ecosystem_cache.clear()
+        get_ecosystem.cache_clear()
         first = get_ecosystem("npm")
         second = get_ecosystem("npm")
         assert first is second
 
 
 class TestVersionConsistency:
-    def test_init_version_matches_pyproject(self):
+    def test_init_version_matches_pyproject(self) -> None:
         # @req NFR-12
         data = tomllib.loads(PYPROJECT.read_text())
         assert data["project"]["version"] == __version__
 
-    def test_no_runtime_dependencies(self):
+    def test_no_runtime_dependencies(self) -> None:
         # @req NFR-01
         data = tomllib.loads(PYPROJECT.read_text())
         assert "dependencies" not in data["project"]

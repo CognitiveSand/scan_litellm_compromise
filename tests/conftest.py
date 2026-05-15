@@ -1,16 +1,24 @@
 """Shared fixtures for the scan_supply_chain test suite."""
 
+from __future__ import annotations
+
+import re
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from scan_supply_chain.ecosystem_base import EcosystemPlugin
 from scan_supply_chain.models import (
     ConfigReference,
     Installation,
     ScanResults,
     SourceReference,
 )
+from scan_supply_chain.platform_policy import PlatformPolicy
+from scan_supply_chain.scan_context import ScanContext
+from scan_supply_chain.skip_report import SkipReport
 from scan_supply_chain.threat_profile import (
     C2Info,
     KnownPathIOC,
@@ -34,12 +42,12 @@ AXIOS_COMPROMISED = frozenset({"1.14.1", "0.30.4"})
 class StubPolicy:
     """Minimal PlatformPolicy satisfying the Protocol for tests."""
 
-    name = "TestOS"
-    platform_key = "linux"
+    name: str = "TestOS"
+    platform_key: str = "linux"
     search_roots: list[str] = []
     conda_globs: list[str] = []
-    network_check_command = None
-    exclusion_note = "test note"
+    network_check_command: list[str] | None = None
+    exclusion_note: str = "test note"
 
     def home_conda_dirs(self) -> list[str]:
         return []
@@ -54,46 +62,48 @@ class StubPolicy:
 class StubEcosystem:
     """Minimal EcosystemPlugin for tests."""
 
-    name = "stub"
-    source_extensions = frozenset({".py"})
-    config_filenames = frozenset({"requirements.txt"})
-    config_extensions = frozenset({".toml"})
+    name: str = "stub"
+    source_extensions: frozenset[str] = frozenset({".py"})
+    config_filenames: frozenset[str] = frozenset({"requirements.txt"})
+    config_extensions: frozenset[str] = frozenset({".toml"})
 
-    def metadata_dir_pattern(self, package):
-        import re
+    def metadata_dir_pattern(self, package: str) -> re.Pattern[str]:
 
         return re.compile(rf"^{re.escape(package)}-([^/\\]+)\.(dist-info|egg-info)$")
 
-    def extract_version(self, metadata_path):
+    def extract_version(
+        self, metadata_path: Path, skip_report: SkipReport
+    ) -> str | None:
         return None
 
-    def import_patterns(self, package):
+    def import_patterns(self, package: str) -> list[re.Pattern[str]]:
         return []
 
-    def dep_patterns(self, package):
+    def dep_patterns(self, package: str) -> list[re.Pattern[str]]:
         return []
 
-    def pinned_version_pattern(self, package):
-        import re
+    def pinned_version_pattern(self, package: str) -> re.Pattern[str]:
 
         return re.compile(rf"{re.escape(package)}==([0-9][0-9a-zA-Z.*]+)")
 
-    def config_filename_pattern(self):
+    def config_filename_pattern(self) -> re.Pattern[str] | None:
         return None
 
-    def extra_search_roots(self):
+    def extra_search_roots(self) -> list[str]:
         return []
 
-    def find_phantom_deps(self, names, roots):
+    def find_phantom_deps(
+        self, names: list[str], roots: list[str], skip_report: SkipReport
+    ) -> list[str]:
         return []
 
 
 # ── Stub threat profiles ──────────────────────────────────────────────
 
 
-def make_litellm_threat(**overrides) -> ThreatProfile:
+def make_litellm_threat(**overrides: Any) -> ThreatProfile:
     """Build a litellm ThreatProfile with sensible test defaults."""
-    defaults = dict(
+    defaults: dict[str, Any] = dict(
         id="litellm-test",
         name="LiteLLM Test",
         date="2026-03-24",
@@ -145,9 +155,9 @@ def make_litellm_threat(**overrides) -> ThreatProfile:
     return ThreatProfile(**defaults)
 
 
-def make_axios_threat(**overrides) -> ThreatProfile:
+def make_axios_threat(**overrides: Any) -> ThreatProfile:
     """Build an axios ThreatProfile with sensible test defaults."""
-    defaults = dict(
+    defaults: dict[str, Any] = dict(
         id="axios-test",
         name="Axios Test",
         date="2026-03-31",
@@ -181,6 +191,24 @@ def make_axios_threat(**overrides) -> ThreatProfile:
     )
     defaults.update(overrides)
     return ThreatProfile(**defaults)
+
+
+def make_scan_context(
+    threat: ThreatProfile,
+    ecosystem: EcosystemPlugin,
+    roots: list[str],
+    *,
+    policy: PlatformPolicy | None = None,
+    resolve_c2: bool = False,
+) -> ScanContext:
+    """Build a ScanContext for tests with sensible defaults."""
+    return ScanContext(
+        threat=threat,
+        ecosystem=ecosystem,
+        policy=policy or StubPolicy(),
+        roots=roots,
+        resolve_c2=resolve_c2,
+    )
 
 
 # ── Model fixtures ─────────────────────────────────────────────────────
@@ -257,22 +285,26 @@ def scan_results() -> ScanResults:
     return ScanResults()
 
 
-def matches_any(patterns: list, line: str) -> bool:
+def matches_any(patterns: list[re.Pattern[str]], line: str) -> bool:
     """Check if any regex pattern matches a line."""
     return any(p.search(line) for p in patterns)
 
 
-def mock_subprocess_run(monkeypatch, module: str, stdout: str) -> None:
+def mock_subprocess_run(
+    monkeypatch: pytest.MonkeyPatch, module: str, stdout: str
+) -> None:
     """Patch subprocess.run in a scan_supply_chain module."""
     monkeypatch.setattr(
         f"scan_supply_chain.{module}.subprocess.run",
         lambda *a, **kw: subprocess.CompletedProcess(
-            args=a[0], returncode=0, stdout=stdout,
+            args=a[0],
+            returncode=0,
+            stdout=stdout,
         ),
     )
 
 
-def mock_subprocess_timeout(monkeypatch, module: str) -> None:
+def mock_subprocess_timeout(monkeypatch: pytest.MonkeyPatch, module: str) -> None:
     """Patch subprocess.run in a module to raise TimeoutExpired."""
     monkeypatch.setattr(
         f"scan_supply_chain.{module}.subprocess.run",
@@ -282,7 +314,9 @@ def mock_subprocess_timeout(monkeypatch, module: str) -> None:
     )
 
 
-def mock_run_safe(monkeypatch, module: str, stdout: str | None) -> None:
+def mock_run_safe(
+    monkeypatch: pytest.MonkeyPatch, module: str, stdout: str | None
+) -> None:
     """Patch run_safe in a scan_supply_chain module."""
     monkeypatch.setattr(
         f"scan_supply_chain.{module}.run_safe",
@@ -290,7 +324,9 @@ def mock_run_safe(monkeypatch, module: str, stdout: str | None) -> None:
     )
 
 
-def mock_tool_available(monkeypatch, module: str, tool: str) -> None:
+def mock_tool_available(
+    monkeypatch: pytest.MonkeyPatch, module: str, tool: str
+) -> None:
     """Patch shutil.which to find a specific tool."""
     monkeypatch.setattr(
         f"scan_supply_chain.{module}.shutil.which",
@@ -299,7 +335,7 @@ def mock_tool_available(monkeypatch, module: str, tool: str) -> None:
 
 
 @pytest.fixture
-def fake_home(tmp_path, monkeypatch):
+def fake_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Redirect Path.home() to tmp_path for scanner modules."""
     for mod in (
         "cache_scanner",
@@ -310,27 +346,11 @@ def fake_home(tmp_path, monkeypatch):
     return tmp_path
 
 
-@pytest.fixture(autouse=True)
-def _reset_skip_report():
-    """Reset the per-scan skip-report singleton before every test.
-
-    The skip-report accumulates filesystem permission / read errors
-    encountered by the walker and reader helpers. Tests that don't
-    care must not see leakage from earlier tests.
-    """
-    from scan_supply_chain.skip_report import reset_current_report
-
-    reset_current_report()
-    yield
-    reset_current_report()
-
-
 @pytest.fixture
-def tmp_as_tmp(tmp_path):
+def tmp_as_tmp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Make /tmp point to tmp_path for persistence scanner tests."""
-    import scan_supply_chain.persistence_scanner as ps
-
-    original = ps.Path
-    ps.Path = lambda p: tmp_path if str(p) == "/tmp" else original(p)
-    yield tmp_path
-    ps.Path = original
+    monkeypatch.setattr(
+        "scan_supply_chain.persistence_scanner.Path",
+        lambda p: tmp_path if str(p) == "/tmp" else Path(p),
+    )
+    return tmp_path

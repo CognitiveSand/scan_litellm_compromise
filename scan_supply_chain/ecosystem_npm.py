@@ -8,6 +8,10 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .skip_report import SkipReport
 
 logger = logging.getLogger(__name__)
 
@@ -39,25 +43,36 @@ class NpmPlugin:
     def config_extensions(self) -> frozenset[str]:
         return frozenset()  # no extension-based matching for npm configs
 
-    def metadata_dir_pattern(self, package: str) -> re.Pattern:
+    def metadata_dir_pattern(self, package: str) -> re.Pattern[str]:
         # npm packages live in node_modules/{package}/
         # For scoped packages: node_modules/@scope/name/
         escaped = re.escape(package)
         return re.compile(rf"^{escaped}$")
 
-    def extract_version(self, metadata_path: Path) -> str | None:
+    def extract_version(
+        self, metadata_path: Path, skip_report: SkipReport
+    ) -> str | None:
         """Read version from node_modules/{pkg}/package.json."""
         pkg_json = metadata_path / "package.json"
         if not pkg_json.is_file():
             return None
         try:
-            data = json.loads(pkg_json.read_text(errors="ignore"))
-            return data.get("version")
-        except (json.JSONDecodeError, PermissionError, OSError):
-            logger.debug("Cannot read %s", pkg_json)
+            text = pkg_json.read_text(errors="ignore")
+        except PermissionError:
+            skip_report.record_permission(pkg_json)
             return None
+        except OSError as exc:
+            skip_report.record_read_error(pkg_json, type(exc).__name__)
+            return None
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            logger.debug("Cannot parse %s as JSON", pkg_json)
+            return None
+        version = data.get("version") if isinstance(data, dict) else None
+        return version if isinstance(version, str) else None
 
-    def import_patterns(self, package: str) -> list[re.Pattern]:
+    def import_patterns(self, package: str) -> list[re.Pattern[str]]:
         escaped = re.escape(package)
         return [
             # require('axios') or require("axios")
@@ -70,7 +85,7 @@ class NpmPlugin:
             re.compile(rf"""import\s+['"]({escaped})(?:/[^'"]*)?['"]"""),
         ]
 
-    def dep_patterns(self, package: str) -> list[re.Pattern]:
+    def dep_patterns(self, package: str) -> list[re.Pattern[str]]:
         escaped = re.escape(package)
         return [
             # package.json: "axios": "^1.14.0"
@@ -81,7 +96,7 @@ class NpmPlugin:
             re.compile(rf"""["']node_modules/{escaped}["']"""),
         ]
 
-    def pinned_version_pattern(self, package: str) -> re.Pattern:
+    def pinned_version_pattern(self, package: str) -> re.Pattern[str]:
         escaped = re.escape(package)
         # Matches both:
         #   "axios": "1.14.1"  (package.json dependency)
@@ -90,7 +105,7 @@ class NpmPlugin:
             rf"""(?:["']{escaped}["']|["']version["'])\s*:\s*["']([0-9][0-9a-zA-Z.*-]*)["']"""
         )
 
-    def config_filename_pattern(self) -> re.Pattern | None:
+    def config_filename_pattern(self) -> re.Pattern[str] | None:
         return None  # no dynamic config filenames for npm
 
     def extra_search_roots(self) -> list[str]:
@@ -127,6 +142,7 @@ class NpmPlugin:
         self,
         names: list[str],
         search_roots: list[str],
+        skip_report: SkipReport,
     ) -> list[str]:
         """Check for phantom npm dependencies in node_modules."""
         if not names:
@@ -141,7 +157,7 @@ class NpmPlugin:
             if not root_path.is_dir():
                 continue
             for dirpath, dirnames, filenames in pruned_walk(
-                root_path, PHANTOM_WALK_SKIP_DIRS
+                root_path, PHANTOM_WALK_SKIP_DIRS, skip_report
             ):
                 dp = Path(dirpath)
                 # Only inspect node_modules directories

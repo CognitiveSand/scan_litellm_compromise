@@ -7,11 +7,12 @@ from .formatting import (
     print_check_header,
     print_clean,
 )
+from .models import ScanResults
 from .subprocess_utils import run_safe
 
 
 def _check_registry_run_keys(
-    results,
+    results: ScanResults,
     keywords: list[str],
 ) -> None:
     """Check HKCU and HKLM Run keys for suspicious entries."""
@@ -41,7 +42,7 @@ def _check_registry_run_keys(
 
 
 def _check_scheduled_tasks(
-    results,
+    results: ScanResults,
     keywords: list[str],
 ) -> None:
     """Check Task Scheduler for suspicious tasks."""
@@ -65,7 +66,7 @@ def _check_scheduled_tasks(
 
 
 def run_windows_ioc_checks(
-    results,
+    results: ScanResults,
     registry_keywords: list[str],
     schtask_keywords: list[str],
 ) -> None:

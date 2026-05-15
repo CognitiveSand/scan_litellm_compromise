@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .skip_report import SkipReport
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +47,13 @@ class PyPIPlugin:
     def config_extensions(self) -> frozenset[str]:
         return frozenset({".toml", ".cfg"})
 
-    def metadata_dir_pattern(self, package: str) -> re.Pattern:
+    def metadata_dir_pattern(self, package: str) -> re.Pattern[str]:
         escaped = re.escape(package)
         return re.compile(rf"^{escaped}-([^/\\]+)\.(dist-info|egg-info)$")
 
-    def extract_version(self, metadata_path: Path) -> str | None:
+    def extract_version(
+        self, metadata_path: Path, skip_report: SkipReport
+    ) -> str | None:
         """Read Version from METADATA or PKG-INFO; fallback to dir name."""
         version_re = re.compile(r"^Version:\s*(.+)$", re.MULTILINE)
 
@@ -55,7 +62,11 @@ class PyPIPlugin:
             if candidate.is_file():
                 try:
                     text = candidate.read_text(errors="ignore")
-                except (PermissionError, OSError):
+                except PermissionError:
+                    skip_report.record_permission(candidate)
+                    continue
+                except OSError as exc:
+                    skip_report.record_read_error(candidate, type(exc).__name__)
                     continue
                 match = version_re.search(text)
                 if match:
@@ -71,7 +82,7 @@ class PyPIPlugin:
             return dir_match.group(1)
         return None
 
-    def import_patterns(self, package: str) -> list[re.Pattern]:
+    def import_patterns(self, package: str) -> list[re.Pattern[str]]:
         escaped = re.escape(package)
         return [
             re.compile(rf"^\s*import\s+{escaped}"),
@@ -80,7 +91,7 @@ class PyPIPlugin:
             re.compile(rf"""["']{escaped}["']"""),
         ]
 
-    def dep_patterns(self, package: str) -> list[re.Pattern]:
+    def dep_patterns(self, package: str) -> list[re.Pattern[str]]:
         escaped = re.escape(package)
         return [
             # TOML dependency: litellm>=1.0
@@ -91,11 +102,11 @@ class PyPIPlugin:
             re.compile(rf"^\s*{escaped}\s*([=<>!~]|$)"),
         ]
 
-    def pinned_version_pattern(self, package: str) -> re.Pattern:
+    def pinned_version_pattern(self, package: str) -> re.Pattern[str]:
         escaped = re.escape(package)
         return re.compile(rf"(?<![a-zA-Z0-9_-]){escaped}\s*==\s*([0-9][0-9a-zA-Z.*]+)")
 
-    def config_filename_pattern(self) -> re.Pattern | None:
+    def config_filename_pattern(self) -> re.Pattern[str] | None:
         return re.compile(r"^requirements.*\.txt$")
 
     def extra_search_roots(self) -> list[str]:
@@ -105,6 +116,7 @@ class PyPIPlugin:
         self,
         names: list[str],
         search_roots: list[str],
+        skip_report: SkipReport,
     ) -> list[str]:
         """Check for phantom PyPI packages in site-packages."""
         if not names:
@@ -115,7 +127,7 @@ class PyPIPlugin:
             if not root_path.is_dir():
                 continue
             try:
-                for dirpath, dirnames, _ in _walk_site_packages(root_path):
+                for dirpath, dirnames, _ in _walk_site_packages(root_path, skip_report):
                     for name in names:
                         pattern = re.compile(
                             rf"^{re.escape(name)}-[^/\\]+\.(dist-info|egg-info)$"
@@ -125,14 +137,18 @@ class PyPIPlugin:
                                 full = Path(dirpath) / d
                                 found.append(f"phantom:{name} at {full}")
             except PermissionError:
-                logger.debug("Permission denied walking %s", root)
+                skip_report.record_permission(root_path)
         return found
 
 
-def _walk_site_packages(root: Path):
+def _walk_site_packages(
+    root: Path, skip_report: SkipReport
+) -> Iterator[tuple[str, list[str], list[str]]]:
     """Walk looking for site-packages, then check contents."""
     from .config import PHANTOM_WALK_SKIP_DIRS, pruned_walk
 
-    for dirpath, dirnames, filenames in pruned_walk(root, PHANTOM_WALK_SKIP_DIRS):
+    for dirpath, dirnames, filenames in pruned_walk(
+        root, PHANTOM_WALK_SKIP_DIRS, skip_report
+    ):
         if Path(dirpath).name == "site-packages":
             yield dirpath, dirnames, filenames

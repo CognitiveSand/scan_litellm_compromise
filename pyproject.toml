@@ -8,6 +8,7 @@ requires-python = ">=3.11"
 
 [project.optional-dependencies]
 test = ["pytest"]
+dev = ["pytest", "ruff", "mypy"]
 
 [project.scripts]
 scan-supply-chain = "scan_supply_chain.scanner:main"

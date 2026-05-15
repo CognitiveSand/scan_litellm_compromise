@@ -3,11 +3,13 @@
 Module under test: scan_supply_chain.search_roots
 """
 
+from pathlib import Path
+
 from scan_supply_chain.search_roots import deduplicate_roots
 
 
 class TestDeduplicateRoots:
-    def test_removes_child_when_parent_present(self, tmp_path):
+    def test_removes_child_when_parent_present(self, tmp_path: Path) -> None:
         # @req FR-13 NFR-14
         parent = tmp_path / "home"
         child = parent / "me"
@@ -17,7 +19,7 @@ class TestDeduplicateRoots:
 
         assert result == [str(parent)]
 
-    def test_removes_deep_child(self, tmp_path):
+    def test_removes_deep_child(self, tmp_path: Path) -> None:
         # @req FR-13 NFR-14
         root = tmp_path / "opt"
         deep = root / "conda" / "envs" / "myenv"
@@ -27,7 +29,7 @@ class TestDeduplicateRoots:
 
         assert result == [str(root)]
 
-    def test_keeps_independent_roots(self, tmp_path):
+    def test_keeps_independent_roots(self, tmp_path: Path) -> None:
         # @req FR-13
         a = tmp_path / "home"
         b = tmp_path / "opt"
@@ -38,7 +40,7 @@ class TestDeduplicateRoots:
 
         assert len(result) == 2
 
-    def test_removes_symlink_that_resolves_under_parent(self, tmp_path):
+    def test_removes_symlink_that_resolves_under_parent(self, tmp_path: Path) -> None:
         # @req FR-13
         real = tmp_path / "home" / "me"
         real.mkdir(parents=True)
@@ -49,7 +51,7 @@ class TestDeduplicateRoots:
 
         assert len(result) == 1
 
-    def test_ignores_nonexistent_dirs(self, tmp_path):
+    def test_ignores_nonexistent_dirs(self, tmp_path: Path) -> None:
         # @req FR-13
         exists = tmp_path / "real"
         exists.mkdir()
@@ -58,6 +60,6 @@ class TestDeduplicateRoots:
 
         assert result == [str(exists)]
 
-    def test_empty_input(self):
+    def test_empty_input(self) -> None:
         # @req FR-13
         assert deduplicate_roots([]) == []

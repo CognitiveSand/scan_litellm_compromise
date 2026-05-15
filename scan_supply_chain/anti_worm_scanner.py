@@ -154,14 +154,14 @@ def scan_anti_worm(
 # ── Per-repo matcher ────────────────────────────────────────────────────
 
 
-def _match_repo(
-    snapshot: GitRepoSnapshot, indicators: WormIndicators
-) -> _RepoMatch:
+def _match_repo(snapshot: GitRepoSnapshot, indicators: WormIndicators) -> _RepoMatch:
     strong: list[str] = []
     weak: list[str] = []
 
     strong.extend(_match_workflow_files(snapshot.workflow_files, indicators))
-    strong.extend(_match_description(snapshot.description, indicators.repo_descriptions))
+    strong.extend(
+        _match_description(snapshot.description, indicators.repo_descriptions)
+    )
 
     weak.extend(
         f"branch={b}"
@@ -173,7 +173,9 @@ def _match_repo(
     )
     weak.extend(
         f"author={e}"
-        for e in _match_set(snapshot.recent_author_emails, indicators.commit_author_emails)
+        for e in _match_set(
+            snapshot.recent_author_emails, indicators.commit_author_emails
+        )
     )
 
     return _RepoMatch(

@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .config import GIT_REPO_WALK_SKIP_DIRS
-from .skip_report import note_permission_error, note_read_error
+from .skip_report import SkipReport
 from .subprocess_utils import run_safe
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,9 @@ class GitRepoSnapshot:
     recent_author_emails: tuple[str, ...]
 
 
-def build_repo_index(roots: Iterable[str]) -> list[GitRepoSnapshot]:
+def build_repo_index(
+    roots: Iterable[str], skip_report: SkipReport
+) -> list[GitRepoSnapshot]:
     """Return one ``GitRepoSnapshot`` per local repository found under *roots*.
 
     Repositories whose real paths coincide (e.g. via a symlinked worktree)
@@ -56,7 +58,7 @@ def build_repo_index(roots: Iterable[str]) -> list[GitRepoSnapshot]:
     git_available = shutil.which("git") is not None
     seen: set[Path] = set()
     snapshots: list[GitRepoSnapshot] = []
-    for repo_root in _find_repo_roots(roots):
+    for repo_root in _find_repo_roots(roots, skip_report):
         try:
             resolved = repo_root.resolve(strict=False)
         except OSError:
@@ -64,14 +66,14 @@ def build_repo_index(roots: Iterable[str]) -> list[GitRepoSnapshot]:
         if resolved in seen:
             continue
         seen.add(resolved)
-        snapshots.append(_snapshot_repo(repo_root, git_available))
+        snapshots.append(_snapshot_repo(repo_root, git_available, skip_report))
     return snapshots
 
 
 # ── Discovery ───────────────────────────────────────────────────────────
 
 
-def _find_repo_roots(roots: Iterable[str]) -> Iterator[Path]:
+def _find_repo_roots(roots: Iterable[str], skip_report: SkipReport) -> Iterator[Path]:
     """Yield the parent directory of each ``.git`` directory found.
 
     Does not descend into ``.git/`` itself. Prunes heavy/uninteresting
@@ -83,9 +85,9 @@ def _find_repo_roots(roots: Iterable[str]) -> Iterator[Path]:
     def _on_error(exc: OSError) -> None:
         path = Path(exc.filename) if exc.filename else Path("<unknown>")
         if isinstance(exc, PermissionError):
-            note_permission_error(path)
+            skip_report.record_permission(path)
         else:
-            note_read_error(path, type(exc).__name__)
+            skip_report.record_read_error(path, type(exc).__name__)
 
     for raw in roots:
         root_path = Path(raw)
@@ -102,24 +104,26 @@ def _find_repo_roots(roots: Iterable[str]) -> Iterator[Path]:
                     # per outer repo is enough for the anti-worm scan.
                     dirnames.remove(".git")
         except PermissionError:
-            note_permission_error(root_path)
+            skip_report.record_permission(root_path)
 
 
 # ── Per-repo snapshot ───────────────────────────────────────────────────
 
 
-def _snapshot_repo(repo_root: Path, git_available: bool) -> GitRepoSnapshot:
+def _snapshot_repo(
+    repo_root: Path, git_available: bool, skip_report: SkipReport
+) -> GitRepoSnapshot:
     git_dir = repo_root / ".git"
     return GitRepoSnapshot(
         repo_root=repo_root,
-        description=_read_description(git_dir),
-        local_branches=tuple(_read_local_branches(git_dir)),
-        workflow_files=tuple(_list_workflow_files(repo_root)),
+        description=_read_description(git_dir, skip_report),
+        local_branches=tuple(_read_local_branches(git_dir, skip_report)),
+        workflow_files=tuple(_list_workflow_files(repo_root, skip_report)),
         recent_author_emails=tuple(_read_recent_emails(repo_root, git_available)),
     )
 
 
-def _read_description(git_dir: Path) -> str:
+def _read_description(git_dir: Path, skip_report: SkipReport) -> str:
     """Return the contents of ``.git/description`` or empty string."""
     desc_path = git_dir / "description"
     try:
@@ -128,14 +132,14 @@ def _read_description(git_dir: Path) -> str:
         # Missing description file is normal — don't record.
         return ""
     except PermissionError:
-        note_permission_error(desc_path)
+        skip_report.record_permission(desc_path)
         return ""
     except OSError as exc:
-        note_read_error(desc_path, type(exc).__name__)
+        skip_report.record_read_error(desc_path, type(exc).__name__)
         return ""
 
 
-def _read_local_branches(git_dir: Path) -> Iterator[str]:
+def _read_local_branches(git_dir: Path, skip_report: SkipReport) -> Iterator[str]:
     """Yield local branch short names from refs/heads/ and packed-refs."""
     heads_dir = git_dir / "refs" / "heads"
     if heads_dir.is_dir():
@@ -144,9 +148,9 @@ def _read_local_branches(git_dir: Path) -> Iterator[str]:
                 if entry.is_file():
                     yield entry.relative_to(heads_dir).as_posix()
         except PermissionError:
-            note_permission_error(heads_dir)
+            skip_report.record_permission(heads_dir)
         except OSError as exc:
-            note_read_error(heads_dir, type(exc).__name__)
+            skip_report.record_read_error(heads_dir, type(exc).__name__)
 
     packed = git_dir / "packed-refs"
     if packed.is_file():
@@ -160,14 +164,14 @@ def _read_local_branches(git_dir: Path) -> Iterator[str]:
                 ref = parts[1].strip()
                 prefix = "refs/heads/"
                 if ref.startswith(prefix):
-                    yield ref[len(prefix):]
+                    yield ref[len(prefix) :]
         except PermissionError:
-            note_permission_error(packed)
+            skip_report.record_permission(packed)
         except OSError as exc:
-            note_read_error(packed, type(exc).__name__)
+            skip_report.record_read_error(packed, type(exc).__name__)
 
 
-def _list_workflow_files(repo_root: Path) -> Iterator[Path]:
+def _list_workflow_files(repo_root: Path, skip_report: SkipReport) -> Iterator[Path]:
     """Yield .github/workflows/*.y[a]ml files next to the repo root."""
     workflows = repo_root / ".github" / "workflows"
     if not workflows.is_dir():
@@ -177,9 +181,9 @@ def _list_workflow_files(repo_root: Path) -> Iterator[Path]:
             if entry.is_file() and entry.suffix in _WORKFLOW_SUFFIXES:
                 yield entry
     except PermissionError:
-        note_permission_error(workflows)
+        skip_report.record_permission(workflows)
     except OSError as exc:
-        note_read_error(workflows, type(exc).__name__)
+        skip_report.record_read_error(workflows, type(exc).__name__)
 
 
 def _read_recent_emails(repo_root: Path, git_available: bool) -> Iterator[str]:

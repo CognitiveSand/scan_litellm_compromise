@@ -3,6 +3,8 @@
 Module under test: scan_supply_chain.ecosystem_pypi, ecosystem_npm
 """
 
+import re
+
 import pytest
 
 from scan_supply_chain.ecosystem_npm import NpmPlugin
@@ -15,7 +17,7 @@ from tests.conftest import matches_any
 
 class TestPyPIMetadataDirPattern:
     @pytest.fixture
-    def pattern(self):
+    def pattern(self) -> re.Pattern[str]:
         return PyPIPlugin().metadata_dir_pattern("litellm")
 
     @pytest.mark.parametrize(
@@ -28,7 +30,9 @@ class TestPyPIMetadataDirPattern:
             "litellm-2.0.0.dev0.dist-info",
         ],
     )
-    def test_recognizes_litellm_metadata_dirs(self, pattern, dirname):
+    def test_recognizes_litellm_metadata_dirs(
+        self, pattern: re.Pattern[str], dirname: str
+    ) -> None:
         # @req FR-06
         assert pattern.match(dirname) is not None
 
@@ -43,7 +47,9 @@ class TestPyPIMetadataDirPattern:
             "__pycache__",
         ],
     )
-    def test_rejects_non_litellm_dirs(self, pattern, dirname):
+    def test_rejects_non_litellm_dirs(
+        self, pattern: re.Pattern[str], dirname: str
+    ) -> None:
         # @req FR-06
         assert pattern.match(dirname) is None
 
@@ -53,7 +59,7 @@ class TestPyPIMetadataDirPattern:
 
 class TestPyPIImportPatterns:
     @pytest.fixture
-    def patterns(self):
+    def patterns(self) -> list[re.Pattern[str]]:
         return PyPIPlugin().import_patterns("litellm")
 
     @pytest.mark.parametrize(
@@ -70,7 +76,9 @@ class TestPyPIImportPatterns:
             'result = litellm.acompletion(prompt="hi")',
         ],
     )
-    def test_matches_litellm_usage(self, patterns, line):
+    def test_matches_litellm_usage(
+        self, patterns: list[re.Pattern[str]], line: str
+    ) -> None:
         # @req FR-20
         assert matches_any(patterns, line)
 
@@ -84,7 +92,9 @@ class TestPyPIImportPatterns:
             "x = xlitellm",
         ],
     )
-    def test_does_not_match_non_litellm_usage(self, patterns, line):
+    def test_does_not_match_non_litellm_usage(
+        self, patterns: list[re.Pattern[str]], line: str
+    ) -> None:
         # @req FR-20
         assert not matches_any(patterns, line)
 
@@ -94,7 +104,7 @@ class TestPyPIImportPatterns:
 
 class TestPyPIDependencyPatterns:
     @pytest.fixture
-    def patterns(self):
+    def patterns(self) -> list[re.Pattern[str]]:
         return PyPIPlugin().dep_patterns("litellm")
 
     @pytest.mark.parametrize(
@@ -111,7 +121,9 @@ class TestPyPIDependencyPatterns:
             "litellm",
         ],
     )
-    def test_matches_litellm_dependency_lines(self, patterns, line):
+    def test_matches_litellm_dependency_lines(
+        self, patterns: list[re.Pattern[str]], line: str
+    ) -> None:
         # @req FR-21
         assert matches_any(patterns, line)
 
@@ -123,7 +135,9 @@ class TestPyPIDependencyPatterns:
             "my-litellm-wrapper>=1.0",
         ],
     )
-    def test_does_not_match_non_litellm_deps(self, patterns, line):
+    def test_does_not_match_non_litellm_deps(
+        self, patterns: list[re.Pattern[str]], line: str
+    ) -> None:
         # @req FR-21
         assert not matches_any(patterns, line)
 
@@ -133,7 +147,7 @@ class TestPyPIDependencyPatterns:
 
 class TestPyPIPinnedVersion:
     @pytest.fixture
-    def pattern(self):
+    def pattern(self) -> re.Pattern[str]:
         return PyPIPlugin().pinned_version_pattern("litellm")
 
     @pytest.mark.parametrize(
@@ -145,7 +159,9 @@ class TestPyPIPinnedVersion:
             ("litellm==0.1.0a1", "0.1.0a1"),
         ],
     )
-    def test_extracts_pinned_versions(self, pattern, line, expected):
+    def test_extracts_pinned_versions(
+        self, pattern: re.Pattern[str], line: str, expected: str
+    ) -> None:
         # @req FR-22
         match = pattern.search(line)
         assert match is not None
@@ -160,7 +176,9 @@ class TestPyPIPinnedVersion:
             "requests==2.31.0",
         ],
     )
-    def test_does_not_extract_from_non_pinned(self, pattern, line):
+    def test_does_not_extract_from_non_pinned(
+        self, pattern: re.Pattern[str], line: str
+    ) -> None:
         # @req FR-22
         match = pattern.search(line)
         # Either no match, or not a pinned litellm version
@@ -176,7 +194,7 @@ class TestPyPIPinnedVersion:
 
 class TestNpmImportPatterns:
     @pytest.fixture
-    def patterns(self):
+    def patterns(self) -> list[re.Pattern[str]]:
         return NpmPlugin().import_patterns("axios")
 
     @pytest.mark.parametrize(
@@ -192,7 +210,9 @@ class TestNpmImportPatterns:
             "import 'axios'",
         ],
     )
-    def test_matches_axios_usage(self, patterns, line):
+    def test_matches_axios_usage(
+        self, patterns: list[re.Pattern[str]], line: str
+    ) -> None:
         # @req FR-20
         assert matches_any(patterns, line)
 
@@ -204,7 +224,9 @@ class TestNpmImportPatterns:
             "// axios is not used",
         ],
     )
-    def test_does_not_match_non_axios_usage(self, patterns, line):
+    def test_does_not_match_non_axios_usage(
+        self, patterns: list[re.Pattern[str]], line: str
+    ) -> None:
         # @req FR-20
         assert not matches_any(patterns, line)
 
@@ -214,7 +236,7 @@ class TestNpmImportPatterns:
 
 class TestNpmDependencyPatterns:
     @pytest.fixture
-    def patterns(self):
+    def patterns(self) -> list[re.Pattern[str]]:
         return NpmPlugin().dep_patterns("axios")
 
     @pytest.mark.parametrize(
@@ -227,7 +249,9 @@ class TestNpmDependencyPatterns:
             '"node_modules/axios"',
         ],
     )
-    def test_matches_axios_dependency_lines(self, patterns, line):
+    def test_matches_axios_dependency_lines(
+        self, patterns: list[re.Pattern[str]], line: str
+    ) -> None:
         # @req FR-21
         assert matches_any(patterns, line)
 
@@ -238,7 +262,9 @@ class TestNpmDependencyPatterns:
             "// axios dep comment",
         ],
     )
-    def test_does_not_match_non_axios_deps(self, patterns, line):
+    def test_does_not_match_non_axios_deps(
+        self, patterns: list[re.Pattern[str]], line: str
+    ) -> None:
         # @req FR-21
         assert not matches_any(patterns, line)
 
@@ -248,7 +274,7 @@ class TestNpmDependencyPatterns:
 
 class TestNpmPinnedVersion:
     @pytest.fixture
-    def pattern(self):
+    def pattern(self) -> re.Pattern[str]:
         return NpmPlugin().pinned_version_pattern("axios")
 
     @pytest.mark.parametrize(
@@ -258,7 +284,9 @@ class TestNpmPinnedVersion:
             ('"axios": "0.30.4"', "0.30.4"),
         ],
     )
-    def test_extracts_pinned_versions(self, pattern, line, expected):
+    def test_extracts_pinned_versions(
+        self, pattern: re.Pattern[str], line: str, expected: str
+    ) -> None:
         # @req FR-22
         match = pattern.search(line)
         assert match is not None
@@ -271,7 +299,9 @@ class TestNpmPinnedVersion:
             '"axios": "~1.14.0"',
         ],
     )
-    def test_does_not_extract_ranged_versions(self, pattern, line):
+    def test_does_not_extract_ranged_versions(
+        self, pattern: re.Pattern[str], line: str
+    ) -> None:
         # @req FR-22
         match = pattern.search(line)
         assert match is None

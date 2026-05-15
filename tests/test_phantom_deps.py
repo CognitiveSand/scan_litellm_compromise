@@ -5,6 +5,8 @@ Modules under test:
     scan_supply_chain.ecosystem_pypi (site-packages walk)
 """
 
+from pathlib import Path
+
 import json
 
 from scan_supply_chain.ecosystem_npm import (
@@ -14,13 +16,14 @@ from scan_supply_chain.ecosystem_npm import (
     _check_yarn_lock,
 )
 from scan_supply_chain.ecosystem_pypi import PyPIPlugin
+from scan_supply_chain.skip_report import SkipReport
 
 
 # ── npm: package-lock.json structural parsing ────────────────────────
 
 
 class TestPackageLockJsonParsing:
-    def test_finds_phantom_in_lockfile_v3_packages(self, tmp_path):
+    def test_finds_phantom_in_lockfile_v3_packages(self, tmp_path: Path) -> None:
         # @req FR-17
         lockfile = tmp_path / "package-lock.json"
         lockfile.write_text(
@@ -40,7 +43,7 @@ class TestPackageLockJsonParsing:
         assert len(found) == 1
         assert "plain-crypto-js@4.2.1" in found[0]
 
-    def test_finds_phantom_in_lockfile_v1_dependencies(self, tmp_path):
+    def test_finds_phantom_in_lockfile_v1_dependencies(self, tmp_path: Path) -> None:
         # @req FR-17
         lockfile = tmp_path / "package-lock.json"
         lockfile.write_text(
@@ -60,7 +63,7 @@ class TestPackageLockJsonParsing:
         assert len(found) == 1
         assert "plain-crypto-js@4.2.1" in found[0]
 
-    def test_ignores_packages_not_in_names_list(self, tmp_path):
+    def test_ignores_packages_not_in_names_list(self, tmp_path: Path) -> None:
         # @req FR-17
         lockfile = tmp_path / "package-lock.json"
         lockfile.write_text(
@@ -77,7 +80,7 @@ class TestPackageLockJsonParsing:
 
         assert found == []
 
-    def test_deduplicates_via_seen_set(self, tmp_path):
+    def test_deduplicates_via_seen_set(self, tmp_path: Path) -> None:
         # @req FR-17
         lockfile = tmp_path / "package-lock.json"
         lockfile.write_text(
@@ -95,7 +98,7 @@ class TestPackageLockJsonParsing:
 
         assert found == []
 
-    def test_handles_malformed_json(self, tmp_path):
+    def test_handles_malformed_json(self, tmp_path: Path) -> None:
         # @req FR-17 NFR-03
         lockfile = tmp_path / "package-lock.json"
         lockfile.write_text("not json {{{")
@@ -104,7 +107,7 @@ class TestPackageLockJsonParsing:
 
         assert found == []
 
-    def test_handles_missing_file(self, tmp_path):
+    def test_handles_missing_file(self, tmp_path: Path) -> None:
         # @req FR-17 NFR-03
         lockfile = tmp_path / "nonexistent.json"
 
@@ -117,7 +120,7 @@ class TestPackageLockJsonParsing:
 
 
 class TestYarnLockParsing:
-    def test_finds_phantom_with_version(self, tmp_path):
+    def test_finds_phantom_with_version(self, tmp_path: Path) -> None:
         # @req FR-17 FR-34
         lockfile = tmp_path / "yarn.lock"
         lockfile.write_text(
@@ -129,7 +132,7 @@ class TestYarnLockParsing:
         assert len(found) == 1
         assert "plain-crypto-js@4.2.1" in found[0]
 
-    def test_ignores_substring_in_middle_of_line(self, tmp_path):
+    def test_ignores_substring_in_middle_of_line(self, tmp_path: Path) -> None:
         # @req FR-17
         lockfile = tmp_path / "yarn.lock"
         lockfile.write_text('  resolved "https://registry/plain-crypto-js-4.2.1"\n')
@@ -138,7 +141,7 @@ class TestYarnLockParsing:
 
         assert found == []
 
-    def test_finds_phantom_at_file_start_with_version(self, tmp_path):
+    def test_finds_phantom_at_file_start_with_version(self, tmp_path: Path) -> None:
         # @req FR-17 FR-34
         lockfile = tmp_path / "yarn.lock"
         lockfile.write_text('plain-crypto-js@^4.2.1:\n  version "4.2.1"\n')
@@ -148,7 +151,7 @@ class TestYarnLockParsing:
         assert len(found) == 1
         assert "plain-crypto-js@4.2.1" in found[0]
 
-    def test_falls_back_when_no_version_line(self, tmp_path):
+    def test_falls_back_when_no_version_line(self, tmp_path: Path) -> None:
         # @req FR-34
         lockfile = tmp_path / "yarn.lock"
         lockfile.write_text('plain-crypto-js@^4.2.1:\n  resolved "..."\n')
@@ -158,7 +161,7 @@ class TestYarnLockParsing:
         assert len(found) == 1
         assert "plain-crypto-js@?" in found[0]
 
-    def test_handles_missing_file(self, tmp_path):
+    def test_handles_missing_file(self, tmp_path: Path) -> None:
         # @req FR-17 NFR-03
         lockfile = tmp_path / "nonexistent.lock"
 
@@ -171,7 +174,7 @@ class TestYarnLockParsing:
 
 
 class TestPnpmLockParsing:
-    def test_finds_phantom_in_v6_with_version(self, tmp_path):
+    def test_finds_phantom_in_v6_with_version(self, tmp_path: Path) -> None:
         # @req FR-17 FR-34
         lockfile = tmp_path / "pnpm-lock.yaml"
         lockfile.write_text(
@@ -187,7 +190,7 @@ class TestPnpmLockParsing:
         assert len(found) == 1
         assert "plain-crypto-js@4.2.1" in found[0]
 
-    def test_finds_phantom_in_v9_with_version(self, tmp_path):
+    def test_finds_phantom_in_v9_with_version(self, tmp_path: Path) -> None:
         # @req FR-17 FR-34
         lockfile = tmp_path / "pnpm-lock.yaml"
         lockfile.write_text(
@@ -202,7 +205,7 @@ class TestPnpmLockParsing:
         assert len(found) == 1
         assert "plain-crypto-js@4.2.1" in found[0]
 
-    def test_ignores_packages_not_in_names_list(self, tmp_path):
+    def test_ignores_packages_not_in_names_list(self, tmp_path: Path) -> None:
         # @req FR-17
         lockfile = tmp_path / "pnpm-lock.yaml"
         lockfile.write_text(
@@ -216,7 +219,7 @@ class TestPnpmLockParsing:
 
         assert found == []
 
-    def test_handles_missing_file(self, tmp_path):
+    def test_handles_missing_file(self, tmp_path: Path) -> None:
         # @req FR-17 NFR-03
         lockfile = tmp_path / "nonexistent.yaml"
 
@@ -224,7 +227,7 @@ class TestPnpmLockParsing:
 
         assert found == []
 
-    def test_deduplicates_via_seen_set(self, tmp_path):
+    def test_deduplicates_via_seen_set(self, tmp_path: Path) -> None:
         # @req FR-17
         lockfile = tmp_path / "pnpm-lock.yaml"
         lockfile.write_text("packages:\n  /plain-crypto-js@4.2.1:\n    dev: false\n")
@@ -239,7 +242,7 @@ class TestPnpmLockParsing:
 
 
 class TestNpmPhantomDepWalkWithPnpm:
-    def test_finds_phantom_in_pnpm_lock_during_walk(self, tmp_path):
+    def test_finds_phantom_in_pnpm_lock_during_walk(self, tmp_path: Path) -> None:
         # @req FR-17
         project = tmp_path / "project"
         project.mkdir()
@@ -248,7 +251,9 @@ class TestNpmPhantomDepWalkWithPnpm:
         )
 
         plugin = NpmPlugin()
-        found = plugin.find_phantom_deps(["plain-crypto-js"], [str(tmp_path)])
+        found = plugin.find_phantom_deps(
+            ["plain-crypto-js"], [str(tmp_path)], SkipReport()
+        )
 
         assert len(found) == 1
         assert "plain-crypto-js" in found[0]
@@ -258,18 +263,20 @@ class TestNpmPhantomDepWalkWithPnpm:
 
 
 class TestNpmPhantomDepWalk:
-    def test_finds_phantom_in_node_modules(self, tmp_path):
+    def test_finds_phantom_in_node_modules(self, tmp_path: Path) -> None:
         # @req FR-17
         nm = tmp_path / "project" / "node_modules" / "plain-crypto-js"
         nm.mkdir(parents=True)
 
         plugin = NpmPlugin()
-        found = plugin.find_phantom_deps(["plain-crypto-js"], [str(tmp_path)])
+        found = plugin.find_phantom_deps(
+            ["plain-crypto-js"], [str(tmp_path)], SkipReport()
+        )
 
         assert len(found) == 1
         assert "plain-crypto-js" in found[0]
 
-    def test_finds_phantom_in_lockfile_during_walk(self, tmp_path):
+    def test_finds_phantom_in_lockfile_during_walk(self, tmp_path: Path) -> None:
         # @req FR-17
         project = tmp_path / "project"
         project.mkdir()
@@ -284,25 +291,29 @@ class TestNpmPhantomDepWalk:
         )
 
         plugin = NpmPlugin()
-        found = plugin.find_phantom_deps(["plain-crypto-js"], [str(tmp_path)])
+        found = plugin.find_phantom_deps(
+            ["plain-crypto-js"], [str(tmp_path)], SkipReport()
+        )
 
         assert len(found) == 1
         assert "4.2.1" in found[0]
 
-    def test_returns_empty_when_no_phantom_deps(self, tmp_path):
+    def test_returns_empty_when_no_phantom_deps(self, tmp_path: Path) -> None:
         # @req FR-17
         nm = tmp_path / "project" / "node_modules" / "axios"
         nm.mkdir(parents=True)
 
         plugin = NpmPlugin()
-        found = plugin.find_phantom_deps(["plain-crypto-js"], [str(tmp_path)])
+        found = plugin.find_phantom_deps(
+            ["plain-crypto-js"], [str(tmp_path)], SkipReport()
+        )
 
         assert found == []
 
-    def test_returns_empty_for_empty_names_list(self, tmp_path):
+    def test_returns_empty_for_empty_names_list(self, tmp_path: Path) -> None:
         # @req FR-17
         plugin = NpmPlugin()
-        found = plugin.find_phantom_deps([], [str(tmp_path)])
+        found = plugin.find_phantom_deps([], [str(tmp_path)], SkipReport())
 
         assert found == []
 
@@ -311,41 +322,41 @@ class TestNpmPhantomDepWalk:
 
 
 class TestPyPIPhantomDeps:
-    def test_finds_phantom_dist_info(self, tmp_path):
+    def test_finds_phantom_dist_info(self, tmp_path: Path) -> None:
         # @req FR-18
         sp = tmp_path / "lib" / "site-packages"
         (sp / "evil-pkg-1.0.0.dist-info").mkdir(parents=True)
 
         plugin = PyPIPlugin()
-        found = plugin.find_phantom_deps(["evil-pkg"], [str(tmp_path)])
+        found = plugin.find_phantom_deps(["evil-pkg"], [str(tmp_path)], SkipReport())
 
         assert len(found) == 1
         assert "evil-pkg" in found[0]
 
-    def test_finds_phantom_egg_info(self, tmp_path):
+    def test_finds_phantom_egg_info(self, tmp_path: Path) -> None:
         # @req FR-18
         sp = tmp_path / "lib" / "site-packages"
         (sp / "evil-pkg-1.0.0.egg-info").mkdir(parents=True)
 
         plugin = PyPIPlugin()
-        found = plugin.find_phantom_deps(["evil-pkg"], [str(tmp_path)])
+        found = plugin.find_phantom_deps(["evil-pkg"], [str(tmp_path)], SkipReport())
 
         assert len(found) == 1
         assert "evil-pkg" in found[0]
 
-    def test_ignores_non_matching_packages(self, tmp_path):
+    def test_ignores_non_matching_packages(self, tmp_path: Path) -> None:
         # @req FR-18
         sp = tmp_path / "lib" / "site-packages"
         (sp / "safe-pkg-2.0.0.dist-info").mkdir(parents=True)
 
         plugin = PyPIPlugin()
-        found = plugin.find_phantom_deps(["evil-pkg"], [str(tmp_path)])
+        found = plugin.find_phantom_deps(["evil-pkg"], [str(tmp_path)], SkipReport())
 
         assert found == []
 
-    def test_returns_empty_for_empty_names(self, tmp_path):
+    def test_returns_empty_for_empty_names(self, tmp_path: Path) -> None:
         # @req FR-18
         plugin = PyPIPlugin()
-        found = plugin.find_phantom_deps([], [str(tmp_path)])
+        found = plugin.find_phantom_deps([], [str(tmp_path)], SkipReport())
 
         assert found == []

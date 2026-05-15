@@ -11,6 +11,7 @@ from .models import Installation, ScanResults
 
 if TYPE_CHECKING:
     from .ecosystem_base import EcosystemPlugin
+    from .skip_report import SkipReport
     from .threat_profile import ThreatProfile
 
 logger = logging.getLogger(__name__)
@@ -39,11 +40,12 @@ def scan_environments(
     results: ScanResults,
     ecosystem: EcosystemPlugin,
     threat: ThreatProfile,
+    skip_report: SkipReport,
 ) -> None:
     """Check each discovered metadata directory for package version."""
     for metadata_dir in metadata_dirs:
         results.envs_scanned += 1
-        version = ecosystem.extract_version(metadata_dir)
+        version = ecosystem.extract_version(metadata_dir, skip_report)
         if version is None:
             logger.debug("Could not determine version from %s", metadata_dir)
             continue

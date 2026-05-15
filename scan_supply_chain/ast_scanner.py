@@ -32,7 +32,7 @@ def scan_python_imports(
     except SyntaxError:
         return None
 
-    refs: list = []
+    refs: list[SourceReference] = []
 
     for node in ast.walk(tree):
         lineno = getattr(node, "lineno", 0)

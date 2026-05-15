@@ -12,7 +12,7 @@ import os
 from collections.abc import Generator
 from pathlib import Path
 
-from .skip_report import note_permission_error, note_read_error
+from .skip_report import SkipReport
 
 logger = logging.getLogger(__name__)
 
@@ -55,23 +55,27 @@ GIT_REPO_WALK_SKIP_DIRS = (_COMMON_SKIP_DIRS - {".git"}) | {
 }
 
 
-def read_if_contains(path: Path, keyword: str) -> str | None:
-    """Read a text file if it mentions *keyword*; return text or ``None``."""
+def read_if_contains(path: Path, keyword: str, skip_report: SkipReport) -> str | None:
+    """Read a text file if it mentions *keyword*; return text or ``None``.
+
+    Permission and read failures are recorded on ``skip_report`` so the
+    post-scan summary can show them.
+    """
     if not path.is_file():
         return None
     try:
         text = path.read_text(errors="ignore")
     except PermissionError:
-        note_permission_error(path)
+        skip_report.record_permission(path)
         return None
     except OSError as exc:
-        note_read_error(path, type(exc).__name__)
+        skip_report.record_read_error(path, type(exc).__name__)
         return None
     return text if keyword in text else None
 
 
 def pruned_walk(
-    root: Path, skip_dirs: frozenset[str]
+    root: Path, skip_dirs: frozenset[str], skip_report: SkipReport
 ) -> Generator[tuple[str, list[str], list[str]], None, None]:
     """os.walk with directory pruning and skip-report instrumentation.
 
@@ -84,13 +88,13 @@ def pruned_walk(
     def _on_error(exc: OSError) -> None:
         path = Path(exc.filename) if exc.filename else root
         if isinstance(exc, PermissionError):
-            note_permission_error(path)
+            skip_report.record_permission(path)
         else:
-            note_read_error(path, type(exc).__name__)
+            skip_report.record_read_error(path, type(exc).__name__)
 
     try:
         for dirpath, dirnames, filenames in os.walk(root, onerror=_on_error):
             dirnames[:] = [d for d in dirnames if d not in skip_dirs]
             yield dirpath, dirnames, filenames
     except PermissionError:
-        note_permission_error(root)
+        skip_report.record_permission(root)

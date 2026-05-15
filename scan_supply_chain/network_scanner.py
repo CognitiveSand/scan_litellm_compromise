@@ -16,6 +16,28 @@ logger = logging.getLogger(__name__)
 
 _SS_PROCESS_RE = re.compile(r'"([^"]+)",pid=(\d+)')
 
+# Bracketed IPv6 peer: ``[2001:db8::1]:443``. Brackets are stripped so
+# the returned host matches the bare-IP form used in threat-profile
+# ``c2.ips`` lists; without this, IPv6 C2 traffic is silently missed
+# because ``rpartition(":")`` leaves the closing bracket in the host.
+_IPV6_BRACKETED_PEER_RE = re.compile(r"^\[([^\]]+)\]:(\d+)$")
+
+
+def _split_host_port(peer: str) -> tuple[str, int] | None:
+    """Split ``host:port`` from a connection-peer string.
+
+    Handles plain IPv4 (``1.2.3.4:443``) and bracketed IPv6
+    (``[2001:db8::1]:443``). Returns ``None`` when the format is
+    unrecognised or the port is not numeric.
+    """
+    bracketed_match = _IPV6_BRACKETED_PEER_RE.match(peer)
+    if bracketed_match:
+        return bracketed_match.group(1), int(bracketed_match.group(2))
+    host, sep, port_str = peer.rpartition(":")
+    if not sep or not port_str.isdigit():
+        return None
+    return host, int(port_str)
+
 
 @dataclass(frozen=True)
 class ConnectionRecord:
@@ -35,15 +57,15 @@ def parse_ss_output(raw: str) -> list[ConnectionRecord]:
         parts = line.split()
         if len(parts) < 5:
             continue
-        peer = parts[4]
-        peer_ip, _, peer_port_str = peer.rpartition(":")
-        if not peer_port_str.isdigit():
+        host_port = _split_host_port(parts[4])
+        if host_port is None:
             continue
+        peer_ip, peer_port = host_port
         proc_match = _SS_PROCESS_RE.search(line)
         records.append(
             ConnectionRecord(
                 peer_ip=peer_ip,
-                peer_port=int(peer_port_str),
+                peer_port=peer_port,
                 pid=int(proc_match.group(2)) if proc_match else 0,
                 process_name=proc_match.group(1) if proc_match else "",
             )
@@ -64,13 +86,14 @@ def parse_lsof_output(raw: str) -> list[ConnectionRecord]:
         if "->" not in name_field:
             continue
         remote = name_field.split("->")[1]
-        peer_ip, _, peer_port_str = remote.rpartition(":")
-        if not peer_port_str.isdigit():
+        host_port = _split_host_port(remote)
+        if host_port is None:
             continue
+        peer_ip, peer_port = host_port
         records.append(
             ConnectionRecord(
                 peer_ip=peer_ip,
-                peer_port=int(peer_port_str),
+                peer_port=peer_port,
                 pid=int(pid_str) if pid_str.isdigit() else 0,
                 process_name=process_name,
             )

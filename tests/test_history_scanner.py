@@ -3,12 +3,21 @@
 Module under test: scan_supply_chain.history_scanner
 """
 
+from pathlib import Path
+
+import pytest
+
 from scan_supply_chain.history_scanner import scan_history
 from scan_supply_chain.models import ScanResults
 
 
 class TestScanHistory:
-    def test_finds_pip_install_in_bash_history(self, tmp_path, monkeypatch, capsys):
+    def test_finds_pip_install_in_bash_history(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         # @req FR-43
         monkeypatch.setattr(
             "scan_supply_chain.history_scanner.Path.home", lambda: tmp_path
@@ -21,7 +30,12 @@ class TestScanHistory:
         assert len(results.findings) == 1
         assert "pip install" in results.findings[0].description
 
-    def test_finds_npm_install_in_zsh_history(self, tmp_path, monkeypatch, capsys):
+    def test_finds_npm_install_in_zsh_history(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         # @req FR-43
         monkeypatch.setattr(
             "scan_supply_chain.history_scanner.Path.home", lambda: tmp_path
@@ -34,7 +48,12 @@ class TestScanHistory:
         assert len(results.findings) == 1
         assert "npm install" in results.findings[0].description
 
-    def test_finds_yarn_add(self, tmp_path, monkeypatch, capsys):
+    def test_finds_yarn_add(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         # @req FR-43
         monkeypatch.setattr(
             "scan_supply_chain.history_scanner.Path.home", lambda: tmp_path
@@ -46,7 +65,12 @@ class TestScanHistory:
 
         assert len(results.findings) == 1
 
-    def test_ignores_unrelated_history(self, tmp_path, monkeypatch, capsys):
+    def test_ignores_unrelated_history(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         # @req FR-43
         monkeypatch.setattr(
             "scan_supply_chain.history_scanner.Path.home", lambda: tmp_path
@@ -60,7 +84,12 @@ class TestScanHistory:
         captured = capsys.readouterr().out
         assert "No install commands" in captured
 
-    def test_handles_missing_history(self, tmp_path, monkeypatch, capsys):
+    def test_handles_missing_history(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         # @req FR-43 NFR-03
         monkeypatch.setattr(
             "scan_supply_chain.history_scanner.Path.home", lambda: tmp_path
@@ -71,7 +100,12 @@ class TestScanHistory:
 
         assert results.findings == []
 
-    def test_skips_pip_patterns_for_npm(self, tmp_path, monkeypatch, capsys):
+    def test_skips_pip_patterns_for_npm(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         # @req FR-43
         monkeypatch.setattr(
             "scan_supply_chain.history_scanner.Path.home", lambda: tmp_path

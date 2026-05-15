@@ -13,25 +13,32 @@ import pytest
 from scan_supply_chain.platform_darwin import DarwinPolicy
 from scan_supply_chain.platform_linux import LinuxPolicy
 from scan_supply_chain.platform_policy import detect_platform
+from scan_supply_chain.platform_windows import WindowsPolicy
 
 
 # ── detect_platform ──────────────────────────────────────────────────
 
 
 class TestDetectPlatform:
-    def test_returns_linux_policy_on_linux(self, monkeypatch):
+    def test_returns_linux_policy_on_linux(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # @req FR-25
         monkeypatch.setattr(sys, "platform", "linux")
         policy = detect_platform()
         assert policy.name == "Linux"
 
-    def test_returns_windows_policy_on_win32(self, monkeypatch):
+    def test_returns_windows_policy_on_win32(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # @req FR-25
         monkeypatch.setattr(sys, "platform", "win32")
         policy = detect_platform()
         assert policy.name == "Windows"
 
-    def test_returns_darwin_policy_on_darwin(self, monkeypatch):
+    def test_returns_darwin_policy_on_darwin(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # @req FR-25
         monkeypatch.setattr(sys, "platform", "darwin")
         policy = detect_platform()
@@ -43,33 +50,33 @@ class TestDetectPlatform:
 
 class TestLinuxPolicy:
     @pytest.fixture
-    def policy(self):
+    def policy(self) -> LinuxPolicy:
         return LinuxPolicy()
 
-    def test_name_is_linux(self, policy):
+    def test_name_is_linux(self, policy: LinuxPolicy) -> None:
         # @req FR-25
         assert policy.name == "Linux"
 
-    def test_platform_key_is_linux(self, policy):
+    def test_platform_key_is_linux(self, policy: LinuxPolicy) -> None:
         # @req FR-25
         assert policy.platform_key == "linux"
 
-    def test_search_roots_excludes_root_home(self, policy):
+    def test_search_roots_excludes_root_home(self, policy: LinuxPolicy) -> None:
         # @req FR-25
         assert "/root" not in policy.search_roots
 
-    def test_search_roots_includes_common_paths(self, policy):
+    def test_search_roots_includes_common_paths(self, policy: LinuxPolicy) -> None:
         # @req FR-25
         roots = policy.search_roots
         assert "/home" in roots
         assert "/opt" in roots
         assert "/usr/local" in roots
 
-    def test_network_check_command_is_ss(self, policy):
+    def test_network_check_command_is_ss(self, policy: LinuxPolicy) -> None:
         # @req FR-14 FR-25
         assert policy.network_check_command == ["ss", "-tnp"]
 
-    def test_home_conda_dirs_returns_known_names(self, policy):
+    def test_home_conda_dirs_returns_known_names(self, policy: LinuxPolicy) -> None:
         # @req FR-25
         dirs = policy.home_conda_dirs()
         assert "miniconda3" in dirs
@@ -81,32 +88,32 @@ class TestLinuxPolicy:
 
 class TestDarwinPolicy:
     @pytest.fixture
-    def policy(self):
+    def policy(self) -> DarwinPolicy:
         return DarwinPolicy()
 
-    def test_name_is_macos(self, policy):
+    def test_name_is_macos(self, policy: DarwinPolicy) -> None:
         # @req FR-25
         assert policy.name == "macOS"
 
-    def test_platform_key_is_darwin(self, policy):
+    def test_platform_key_is_darwin(self, policy: DarwinPolicy) -> None:
         # @req FR-25
         assert policy.platform_key == "darwin"
 
-    def test_search_roots_uses_users_not_home(self, policy):
+    def test_search_roots_uses_users_not_home(self, policy: DarwinPolicy) -> None:
         # @req FR-25
         roots = policy.search_roots
         assert "/Users" in roots
         assert "/home" not in roots
 
-    def test_search_roots_includes_homebrew(self, policy):
+    def test_search_roots_includes_homebrew(self, policy: DarwinPolicy) -> None:
         # @req FR-25
         assert "/opt/homebrew" in policy.search_roots
 
-    def test_network_check_command_is_lsof(self, policy):
+    def test_network_check_command_is_lsof(self, policy: DarwinPolicy) -> None:
         # @req FR-14 FR-25
         assert policy.network_check_command == ["lsof", "-i", "-P", "-n"]
 
-    def test_home_conda_dirs_returns_known_names(self, policy):
+    def test_home_conda_dirs_returns_known_names(self, policy: DarwinPolicy) -> None:
         # @req FR-25
         dirs = policy.home_conda_dirs()
         assert "miniconda3" in dirs
@@ -118,26 +125,24 @@ class TestDarwinPolicy:
 
 class TestWindowsPolicy:
     @pytest.fixture
-    def policy(self, monkeypatch):
+    def policy(self, monkeypatch: pytest.MonkeyPatch) -> WindowsPolicy:
         monkeypatch.setenv("USERPROFILE", "/tmp/fakehome")
         monkeypatch.setenv("APPDATA", "/tmp/fakehome/AppData/Roaming")
         monkeypatch.setenv("LOCALAPPDATA", "/tmp/fakehome/AppData/Local")
         monkeypatch.setenv("TEMP", "/tmp/faketemp")
         monkeypatch.setenv("ProgramFiles", "/tmp/Program Files")
 
-        from scan_supply_chain.platform_windows import WindowsPolicy
-
         return WindowsPolicy()
 
-    def test_name_is_windows(self, policy):
+    def test_name_is_windows(self, policy: WindowsPolicy) -> None:
         # @req FR-25
         assert policy.name == "Windows"
 
-    def test_platform_key_is_windows(self, policy):
+    def test_platform_key_is_windows(self, policy: WindowsPolicy) -> None:
         # @req FR-25
         assert policy.platform_key == "windows"
 
-    def test_home_conda_dirs_returns_windows_names(self, policy):
+    def test_home_conda_dirs_returns_windows_names(self, policy: WindowsPolicy) -> None:
         # @req FR-25
         dirs = policy.home_conda_dirs()
         assert "Miniconda3" in dirs

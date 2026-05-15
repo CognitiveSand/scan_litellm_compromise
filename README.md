@@ -124,6 +124,13 @@ User profiles override built-in profiles with the same `id`.
 
 ### Writing a threat profile
 
+Every section is validated against a known-key schema at load time. A typo
+like `ecosytem = "npm"` raises `UnknownProfileKeyError` with the file
+path and offending key — the scanner refuses to start on a malformed
+profile rather than silently dropping the value. Same applies to invalid
+regexes in `branch_name_regexes` / `workflow_name_regexes`: they fail
+loud at load time, not at scan time.
+
 ```toml
 [threat]
 id          = "mypackage-2026-04"
@@ -377,11 +384,19 @@ scan_supply_chain/
     mini-shai-hulud-2026-05.toml   Mini Shai-Hulud — May 2026 TanStack wave
     litellm-2026-03.toml           LiteLLM PyPI compromise
     axios-2026-03.toml             Axios npm compromise
-  threat_profile.py      ThreatProfile dataclass + TOML loader
+  report/                Phase 5 — summary rendering, split by output type
+    _references.py         Source/config file reference display
+    _threat.py             Per-threat report (stats + verdict)
+    _anti_worm.py          Anti-worm pre-pass section
+    _skip.py               Post-scan skipped-paths summary
+    _summary.py            Combined multi-threat header/footer
+  threat_profile.py      ThreatProfile dataclass + TOML loader (strict schema)
   ecosystem_base.py      EcosystemPlugin protocol + factory
   ecosystem_pypi.py      PyPI: dist-info, METADATA, Python patterns
   ecosystem_npm.py       npm: node_modules, package.json, JS/TS patterns
-  scanner.py             Orchestrator (multi-threat CLI)
+  scanner.py             Orchestrator: CLI, phase 3 dispatch, multi-threat loop
+  scan_context.py        Per-threat ScanContext dataclass passed through every phase
+  skip_report.py         Per-scan record of paths the scanner could not walk/read
   config.py              Generic constants (skip dirs, file helpers)
   models.py              Data structures + Confidence/Finding enums
   scoring.py             Evidence scoring (findings → confidence tier)
@@ -393,17 +408,18 @@ scan_supply_chain/
   search_roots.py        Deduplicated search root computation
   discovery.py           Phase 1 — find package metadata
   version_checker.py     Phase 2 — read package version
-  ioc_scanner.py         Phase 3 — IOC orchestrator
+  anti_worm_scanner.py   Anti-worm pre-pass — match worm IOCs against local git repos
+  git_repo_index.py      Build read-only snapshot of every local git repo
+  ioc_scanner.py         Phase 3 — individual IOC scanners (walk_files, c2, k8s, etc.)
   ioc_windows.py         Windows-only IOC checks (Registry, Tasks)
-  network_scanner.py     Structured ss/lsof parsing with PID correlation
+  network_scanner.py     Structured ss/lsof parsing with PID correlation (IPv4 + IPv6)
   persistence_scanner.py Crontab, shell rc, systemd, LaunchAgents
   cache_scanner.py       pip/npm/pnpm cache scanning
   history_scanner.py     Shell history for install commands
   ast_scanner.py         AST-based Python import detection
   subprocess_utils.py    Safe subprocess execution helper
   source_scanner.py      Phase 4 — source/config file scanning
-  report.py              Phase 5 — summary with confidence tiers
-tests/                   pytest test suite (355 tests)
+tests/                   pytest test suite (413 tests)
 run_scan.py              Direct entry point
 run_scan.bat             Double-click launcher for Windows
 ```
@@ -418,7 +434,7 @@ This section explains what the scanner does at each step, why it does it, and wh
 
 The scanner is organized around two abstractions:
 
-- **Threat profiles** — TOML files that describe a specific supply chain attack: which package, which versions are compromised, what C2 infrastructure the attacker used, what IOC files the payload drops, and what remediation steps to take. The scanner ships two built-in profiles (LiteLLM, Axios) and supports user-defined profiles.
+- **Threat profiles** — TOML files that describe a specific supply chain attack: which package, which versions are compromised, what C2 infrastructure the attacker used, what IOC files the payload drops, and what remediation steps to take. The scanner ships five built-in profiles (see the table at the top of this document) and supports user-defined profiles.
 - **Ecosystem plugins** — Python classes that know how each package manager stores metadata on disk. The PyPI plugin knows about `dist-info`/`egg-info` directories and `METADATA` files. The npm plugin knows about `node_modules/*/package.json`. Each plugin also provides the regex patterns for detecting imports and dependencies in source and config files.
 
 For each threat profile, the scanner runs a 5-phase pipeline. Each phase feeds data into a shared `ScanResults` object that accumulates installations, IOCs, source references, config references, and typed findings. At the end, the results are scored and a verdict is printed.

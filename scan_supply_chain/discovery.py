@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -9,16 +10,18 @@ from .config import DISCOVERY_SKIP_DIRS, pruned_walk
 
 if TYPE_CHECKING:
     from .ecosystem_base import EcosystemPlugin
+    from .skip_report import SkipReport
 
 
 def _walk_for_metadata(
     root: Path,
-    metadata_pattern,
+    metadata_pattern: re.Pattern[str],
     package: str,
+    skip_report: SkipReport,
 ) -> list[Path]:
     """Walk a directory tree looking for package metadata directories."""
     found = []
-    for dirpath, dirnames, _ in pruned_walk(root, DISCOVERY_SKIP_DIRS):
+    for dirpath, dirnames, _ in pruned_walk(root, DISCOVERY_SKIP_DIRS, skip_report):
         for dirname in dirnames:
             if metadata_pattern.match(dirname):
                 found.append(Path(dirpath) / dirname)
@@ -28,10 +31,11 @@ def _walk_for_metadata(
 def _walk_for_node_modules(
     root: Path,
     package: str,
+    skip_report: SkipReport,
 ) -> list[Path]:
     """Walk a directory tree looking for node_modules/{package}/."""
     found = []
-    for dirpath, dirnames, _ in pruned_walk(root, DISCOVERY_SKIP_DIRS):
+    for dirpath, dirnames, _ in pruned_walk(root, DISCOVERY_SKIP_DIRS, skip_report):
         dp = Path(dirpath)
         if dp.name == "node_modules":
             pkg_dir = dp / package
@@ -59,6 +63,7 @@ def find_package_metadata(
     roots: list[str],
     ecosystem: EcosystemPlugin,
     package: str,
+    skip_report: SkipReport,
 ) -> list[Path]:
     """Find all metadata directories for the given package."""
     found: list[Path] = []
@@ -69,12 +74,16 @@ def find_package_metadata(
         for root in roots:
             root_path = Path(root)
             if root_path.is_dir():
-                found.extend(_walk_for_node_modules(root_path, package))
+                found.extend(_walk_for_node_modules(root_path, package, skip_report))
     else:
         metadata_pattern = ecosystem.metadata_dir_pattern(package)
         for root in roots:
             root_path = Path(root)
             if root_path.is_dir():
-                found.extend(_walk_for_metadata(root_path, metadata_pattern, package))
+                found.extend(
+                    _walk_for_metadata(
+                        root_path, metadata_pattern, package, skip_report
+                    )
+                )
 
     return _deduplicate_by_realpath(found)

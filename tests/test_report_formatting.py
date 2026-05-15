@@ -3,6 +3,8 @@
 Module under test: scan_supply_chain.report
 """
 
+import pytest
+
 from scan_supply_chain.models import (
     ConfigReference,
     Installation,
@@ -23,13 +25,15 @@ from tests.conftest import LITELLM_COMPROMISED, make_litellm_threat
 
 
 class TestPrintSourceRefs:
-    def test_prints_clean_message_when_no_refs(self, capsys):
+    def test_prints_clean_message_when_no_refs(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-20
         print_source_refs([], "litellm")
         captured = capsys.readouterr().out
         assert "No litellm imports found" in captured
 
-    def test_groups_refs_by_file(self, capsys):
+    def test_groups_refs_by_file(self, capsys: pytest.CaptureFixture[str]) -> None:
         # @req FR-20
         refs = [
             SourceReference("/a.py", 1, "import litellm"),
@@ -42,7 +46,9 @@ class TestPrintSourceRefs:
         assert "/a.py" in captured
         assert "/b.py" in captured
 
-    def test_truncates_long_file_lists(self, capsys):
+    def test_truncates_long_file_lists(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-20
         refs = [SourceReference("/a.py", i, f"line{i}") for i in range(1, 10)]
         print_source_refs(refs, "litellm")
@@ -54,13 +60,17 @@ class TestPrintSourceRefs:
 
 
 class TestPrintConfigRefs:
-    def test_prints_clean_message_when_no_refs(self, capsys):
+    def test_prints_clean_message_when_no_refs(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-21
         print_config_refs([], "litellm", LITELLM_COMPROMISED)
         captured = capsys.readouterr().out
         assert "No litellm dependencies found" in captured
 
-    def test_prints_compromised_version_tag(self, capsys):
+    def test_prints_compromised_version_tag(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-22
         refs = [
             ConfigReference("r.txt", 1, "litellm==1.82.7", "1.82.7"),
@@ -69,7 +79,7 @@ class TestPrintConfigRefs:
         captured = capsys.readouterr().out
         assert "COMPROMISED" in captured
 
-    def test_prints_safe_version_tag(self, capsys):
+    def test_prints_safe_version_tag(self, capsys: pytest.CaptureFixture[str]) -> None:
         # @req FR-21
         refs = [
             ConfigReference("r.txt", 1, "litellm==1.80.0", "1.80.0"),
@@ -83,7 +93,7 @@ class TestPrintConfigRefs:
 
 
 class TestPrintThreatReport:
-    def test_prints_clean_verdict(self, capsys):
+    def test_prints_clean_verdict(self, capsys: pytest.CaptureFixture[str]) -> None:
         # @req FR-26
         threat = make_litellm_threat()
         results = ScanResults(compromised_versions=LITELLM_COMPROMISED)
@@ -91,7 +101,9 @@ class TestPrintThreatReport:
         captured = capsys.readouterr().out
         assert "No compromise detected" in captured
 
-    def test_prints_compromised_verdict(self, capsys):
+    def test_prints_compromised_verdict(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         # @req FR-23
         threat = make_litellm_threat()
         results = ScanResults(
@@ -103,7 +115,7 @@ class TestPrintThreatReport:
         assert "COMPROMISE DETECTED" in captured
         assert "pip install litellm==1.82.6" in captured
 
-    def test_prints_ioc_count(self, capsys):
+    def test_prints_ioc_count(self, capsys: pytest.CaptureFixture[str]) -> None:
         # @req FR-23
         threat = make_litellm_threat()
         results = ScanResults(
@@ -114,7 +126,7 @@ class TestPrintThreatReport:
         captured = capsys.readouterr().out
         assert "1" in captured
 
-    def test_shows_advisory_url(self, capsys):
+    def test_shows_advisory_url(self, capsys: pytest.CaptureFixture[str]) -> None:
         # @req FR-24
         threat = make_litellm_threat()
         results = ScanResults(
@@ -130,7 +142,7 @@ class TestPrintThreatReport:
 
 
 class TestPrintMultiThreatSummary:
-    def test_all_clean(self, capsys):
+    def test_all_clean(self, capsys: pytest.CaptureFixture[str]) -> None:
         # @req FR-01 FR-26
         threat = make_litellm_threat()
         results = ScanResults(compromised_versions=LITELLM_COMPROMISED)
@@ -138,7 +150,7 @@ class TestPrintMultiThreatSummary:
         captured = capsys.readouterr().out
         assert "All checks passed" in captured
 
-    def test_any_compromised(self, capsys):
+    def test_any_compromised(self, capsys: pytest.CaptureFixture[str]) -> None:
         # @req FR-01 FR-26
         threat = make_litellm_threat()
         results = ScanResults(
@@ -149,7 +161,7 @@ class TestPrintMultiThreatSummary:
         captured = capsys.readouterr().out
         assert "COMPROMISES DETECTED" in captured
 
-    def test_shows_profile_count(self, capsys):
+    def test_shows_profile_count(self, capsys: pytest.CaptureFixture[str]) -> None:
         # @req FR-01 FR-31
         threat = make_litellm_threat()
         results = ScanResults(compromised_versions=LITELLM_COMPROMISED)

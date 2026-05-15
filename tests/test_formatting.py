@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 
 class TestEnableAnsi:
-    def test_returns_false_when_not_a_tty(self):
+    def test_returns_false_when_not_a_tty(self) -> None:
         # @req FR-27
         from scan_supply_chain.formatting import _enable_ansi
 
@@ -15,7 +15,7 @@ class TestEnableAnsi:
             mock_stdout.isatty.return_value = False
             assert _enable_ansi() is False
 
-    def test_returns_true_on_unix_tty(self):
+    def test_returns_true_on_unix_tty(self) -> None:
         # @req FR-27
         from scan_supply_chain.formatting import _enable_ansi
 
@@ -28,14 +28,14 @@ class TestEnableAnsi:
 
 
 class TestCodeHelper:
-    def test_returns_escape_when_enabled(self):
+    def test_returns_escape_when_enabled(self) -> None:
         # @req FR-27
         from scan_supply_chain.formatting import _code
 
         with patch("scan_supply_chain.formatting._ANSI_ENABLED", True):
             assert _code("\033[1m") == "\033[1m"
 
-    def test_returns_empty_when_disabled(self):
+    def test_returns_empty_when_disabled(self) -> None:
         # @req FR-27
         from scan_supply_chain.formatting import _code
 
